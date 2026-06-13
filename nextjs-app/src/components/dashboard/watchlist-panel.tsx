@@ -100,9 +100,9 @@ export function WatchlistPanel() {
                     <td>{s.vol.toLocaleString()}</td>
                     <td>{fmtNum(s.amount)}</td>
                     <td>{s.turnover}%</td>
-                    <td>{fmtNum(s.outerVol || 0)}</td>
-                    <td>{fmtNum(s.innerVol || 0)}</td>
-                    <td>{s.volumeRatio}</td>
+                    <td className={s.outerVol > s.innerVol ? 'text-rise' : 'text-fall'}>{fmtNum(s.outerVol || 0)}</td>
+                    <td className={s.innerVol > s.outerVol ? 'text-rise' : 'text-fall'}>{fmtNum(s.innerVol || 0)}</td>
+                    <td className={s.volumeRatio > 4 ? 'text-rise' : ''}>{s.volumeRatio}</td>
                   </tr>
                 )
               })}
@@ -132,10 +132,10 @@ export function WatchlistPanel() {
                   ['最低', selected.low.toFixed(2), 'text-fall'],
                   ['成交量', (selected.vol / 10000).toFixed(1) + '万', ''],
                   ['成交额', fmtNum(selected.amount), ''],
-                  ['量比', selected.volumeRatio?.toFixed(2) || '-', ''],
+                  ['量比', selected.volumeRatio?.toFixed(2) || '-', selected.volumeRatio > 4 ? 'text-rise' : ''],
                   ['换手率', selected.turnover + '%', ''],
-                  ['外盘', fmtNum(selected.outerVol || 0), 'text-rise'],
-                  ['内盘', fmtNum(selected.innerVol || 0), 'text-fall'],
+                  ['外盘', fmtNum(selected.outerVol || 0), selected.outerVol > selected.innerVol ? 'text-rise' : 'text-fall'],
+                  ['内盘', fmtNum(selected.innerVol || 0), selected.innerVol > selected.outerVol ? 'text-rise' : 'text-fall'],
                   ['振幅', selected.amplitude?.toFixed(2) + '%' || '-', ''],
                   ['市盈率(TTM)', selected.pe?.toFixed(2) || '-', ''],
                 ].map(([l, v, c]) => (
