@@ -1,15 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-
-const indices = [
-  { name: '上证指数', code: '000001', price: 3267.83, change: 1.24, cls: 'rise' },
-  { name: '深证成指', code: '399001', price: 10458.21, change: 1.67, cls: 'rise' },
-  { name: '创业板指', code: '399006', price: 2087.56, change: -0.32, cls: 'fall' },
-  { name: '科创50', code: '000688', price: 982.43, change: 0.89, cls: 'rise' },
-]
+import { fetchIndices } from '@/lib/api'
+import type { Index } from '@/types'
 
 export function TopBar() {
+  const [indices, setIndices] = useState<Index[]>([])
   const [time, setTime] = useState('')
 
   useEffect(() => {
@@ -19,11 +15,23 @@ export function TopBar() {
     return () => clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    // Initial fetch
+    fetchIndices()
+      .then(setIndices)
+      .catch(() => setIndices([]))
+    // Refresh every 30s
+    const timer = setInterval(() => {
+      fetchIndices().then(setIndices).catch(() => {})
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <header className="top-bar" data-component="Index Ticker Bar">
       <div className="index-group">
         {indices.map(idx => (
-          <div key={idx.code} className={`index-item ${idx.cls}`}>
+          <div key={idx.code} className={`index-item ${idx.change >= 0 ? 'rise' : 'fall'}`}>
             <span className="index-name">{idx.name}</span>
             <span className="index-value">{idx.price.toLocaleString()}</span>
             <span className="index-change">{idx.change >= 0 ? '+' : ''}{idx.change.toFixed(2)}%</span>
