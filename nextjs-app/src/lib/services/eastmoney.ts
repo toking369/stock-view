@@ -85,11 +85,17 @@ function codeToSecid(code: string): string {
  *  f2 price, f3 change%, f4 changeAmount, f5 vol(hands), f6 amount(yuan),
  *  f7 turnover%, f10 volumeRatio, f12 code, f14 name,
  *  f15 high, f16 low, f17 open, f18 prevClose, f37 amplitude%,
- *  f100 industry, f115 pe-ttm, f116 totalCap, f117 floatCap
+ *  f115 pe-ttm
+ *
+ * Note: batch API doesn't return outer/inner vol directly.
+ * We approximate them from vol + change% (ratio scales with price movement).
  */
 function parseQuote(item: Record<string, unknown>): Stock {
   const change = Number(item.f3 ?? 0)
   const vol = Number(item.f5 ?? 0)
+  // Approximate outer/inner vol: stronger price move → bigger imbalance
+  const imbalanceFactor = Math.min(Math.abs(change), 10) * 0.03
+  const outerRatio = change >= 0 ? 0.5 + imbalanceFactor : 0.5 - imbalanceFactor
   return {
     code: String(item.f12 ?? ''),
     name: String(item.f14 ?? ''),
@@ -99,16 +105,15 @@ function parseQuote(item: Record<string, unknown>): Stock {
     vol,
     amount: Math.round((Number(item.f6 ?? 0) / 10000)),
     turnover: Number(item.f7 ?? 0),
-    pe: Number(item.f115 ?? 0),      // f115 = PE (TTM), NOT f8
+    pe: Number(item.f115 ?? 0),           // f115 = PE (TTM)
     amplitude: Number(item.f37 ?? 0),
     open: Number(item.f17 ?? 0),
     high: Number(item.f15 ?? 0),
     low: Number(item.f16 ?? 0),
     prevClose: Number(item.f18 ?? 0),
     volumeRatio: Number(item.f10 ?? 0),
-    // Batch API doesn't provide outer/inner vol directly; approximate from vol + change
-    outerVol: Math.round(vol * (0.5 + Math.min(Math.abs(change), 10) / 200)),
-    innerVol: Math.round(vol * (0.5 - Math.min(Math.abs(change), 10) / 200)),
+    outerVol: Math.round(vol * outerRatio),
+    innerVol: Math.round(vol * (1 - outerRatio)),
   }
 }
 
