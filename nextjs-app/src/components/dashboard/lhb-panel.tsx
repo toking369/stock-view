@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { lhbData, lhbInstData, limitUpList } from '@/lib/mock-data'
+import { useMemo, useEffect, useState } from 'react'
+import { fetchLHB } from '@/lib/api'
 import { fmtNum } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -9,33 +9,59 @@ import { fmtNum } from '@/lib/utils'
 // ---------------------------------------------------------------------------
 
 export function LHBPanel() {
+  const [lhbData, setLhbData] = useState<any[]>([])
+  const [lhbInstData, setLhbInstData] = useState<any[]>([])
+  const [limitUpList, setLimitUpList] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchLHB()
+      .then(data => {
+        setLhbData(data.lhb || [])
+        setLhbInstData(data.institutions || [])
+        setLimitUpList(data.limitUp || [])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
   // --- Summary stats ---------------------------------------------------------
   const stats = useMemo(() => {
     const limitUpCount = lhbData.filter((s) => s.change > 0).length
     const limitDownCount = lhbData.filter((s) => s.change < 0).length
     const avgSealRate =
       limitUpList.reduce((s, item) => s + item.sealRate, 0) /
-      limitUpList.length
+      (limitUpList.length || 1)
     return { limitUpCount, limitDownCount, avgSealRate }
-  }, [])
+  }, [lhbData, limitUpList])
 
   // --- Sorted limit-up list by consecutive days descending -------------------
   const sortedLimitUp = useMemo(
     () => [...limitUpList].sort((a, b) => b.days - a.days),
-    [],
+    [limitUpList],
   )
 
   // --- Sorted LHB records by net descending ----------------------------------
   const sortedLhb = useMemo(
     () => [...lhbData].sort((a, b) => b.net - a.net),
-    [],
+    [lhbData],
   )
 
   // --- Sorted institutional records by netAmount descending -------------------
   const sortedInst = useMemo(
     () => [...lhbInstData].sort((a, b) => b.netAmount - a.netAmount),
-    [],
+    [lhbInstData],
   )
+
+  if (loading)
+    return (
+      <div
+        className="panel-loading"
+        style={{ padding: 40, textAlign: 'center', color: '#888' }}
+      >
+        加载龙虎榜数据中...
+      </div>
+    )
 
   return (
     <div>
