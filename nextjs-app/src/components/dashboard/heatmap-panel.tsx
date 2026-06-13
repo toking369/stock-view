@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import ReactECharts from 'echarts-for-react'
-import { sectorData } from '@/lib/mock-data'
+import { fetchSectors } from '@/lib/api'
 import type { Sector } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -108,9 +108,20 @@ function SectorRankItem({
 
 export function HeatmapPanel() {
   const [activeTab, setActiveTab] = useState<TabKey>('industry')
+  const [sectors, setSectors] = useState<Sector[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Use same data for all tabs (simplified — real app would filter by tab)
-  const dataSource = sectorData
+  const dataSource = sectors
+
+  // ---- Fetch sectors on tab change ----
+  useEffect(() => {
+    setLoading(true)
+    const type = activeTab === 'region' ? 'industry' : activeTab
+    fetchSectors(type, 30)
+      .then(data => { setSectors(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [activeTab])
 
   // ---- Computed rank lists ----
   const { topGainers, topLosers } = useMemo(() => {
@@ -230,6 +241,8 @@ export function HeatmapPanel() {
 
   // ---- Current tab label ----
   const activeLabel = TABS.find((t) => t.key === activeTab)?.label ?? '行业板块'
+
+  if (loading) return <div className="panel-loading" style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载板块数据中...</div>
 
   return (
     <div>
