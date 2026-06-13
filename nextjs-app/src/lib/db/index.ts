@@ -25,16 +25,20 @@ users.set('13800138000', {
   watchlist: ['600519', '300750', '601318', '600036', '300059'],
 })
 
+// Token store
+const tokens = new Map<string, string>() // token -> phone
+
 export const db = {
   findUserByPhone(phone: string): StoredUser | undefined {
     return users.get(phone)
   },
 
-  createUser(phone: string, password: string): StoredUser {
+  createUser(phone: string, password: string, name?: string): StoredUser {
     const user: StoredUser = {
       id: `user-${Date.now()}`,
       phone,
       password,
+      name: name || phone.slice(0, 3) + '***',
       createdAt: Date.now(),
       watchlist: [],
     }
@@ -49,5 +53,13 @@ export const db = {
   updateWatchlist(phone: string, codes: string[]): void {
     const user = users.get(phone)
     if (user) user.watchlist = codes
+  },
+
+  saveToken(token: string, phone: string): void {
+    tokens.set(token, phone)
+  },
+
+  getPhoneByToken(token: string): string | undefined {
+    return tokens.get(token)
   },
 }
