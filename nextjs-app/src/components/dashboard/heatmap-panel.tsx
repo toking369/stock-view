@@ -144,12 +144,13 @@ export function HeatmapPanel() {
         textStyle: { color: '#e5e7eb', fontSize: 12 },
         formatter: (params: any) => {
           if (!params || !params.data) return ''
-          const change = params.data.change as number
+          const change = Number(params.data.change ?? 0)
           const dir = change >= 0 ? 'var(--rise)' : 'var(--fall)'
           const sign = change >= 0 ? '+' : ''
+          const rawValue = Number((params.data as any).rawValue ?? 0)
           return `<strong>${params.name}</strong><br/>
                   涨跌幅：<span style="color:${dir}">${sign}${change.toFixed(2)}%</span><br/>
-                  成交额：${(params.data.rawValue as number).toFixed(0)}亿`
+                  成交额：${rawValue.toFixed(0)}亿`
         },
       },
 
@@ -191,7 +192,7 @@ export function HeatmapPanel() {
             position: 'inside',
             formatter: (params: any) => {
               const name = params.name as string
-              const change = params.data.change as number
+              const change = Number(params.data?.change ?? 0)
               const sign = change >= 0 ? '+' : ''
               return `${name}\n${sign}${change.toFixed(2)}%`
             },
