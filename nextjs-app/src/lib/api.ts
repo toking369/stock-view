@@ -1,74 +1,109 @@
 /**
- * Data API layer — will be replaced with real API calls to backend
- * Currently returns mock data with simulated latency
+ * Data API layer — fetches from backend API routes
  */
+import type { Stock, Index, KLineDataPoint, Sector, CapitalFlow, LHBRecord, LHBInstitution, LimitUpStock, ScreenerStock, PresetStrategy } from '@/types'
 
-import {
-  mockIndices,
-  watchlistData,
-  sectorData,
-  capitalFlowData,
-  lhbData,
-  lhbInstData,
-  limitUpList,
-  screenerStockPool,
-} from './mock-data'
-import { generateKlineData } from './indicators'
-import type { Index, Sector, CapitalFlow, LHBRecord, LHBInstitution, LimitUpStock, ScreenerStock } from '@/types'
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem('stockview_token')
+}
 
-function delay(ms: number = 300): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const token = getToken()
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    throw new Error(err.error || `请求失败 (${res.status})`)
+  }
+  return res.json()
 }
 
 /** Fetch indices */
 export async function fetchIndices(): Promise<Index[]> {
-  await delay()
-  return mockIndices
+  return apiFetch<Index[]>('/api/market/indices')
 }
 
-/** Fetch watchlist quotes */
-export async function fetchQuotes(): Promise<typeof watchlistData> {
-  await delay()
-  return watchlistData
+/** Fetch quotes */
+export async function fetchQuotes(codes?: string[]): Promise<Stock[]> {
+  const params = codes?.length ? `?codes=${codes.join(',')}` : ''
+  return apiFetch<Stock[]>(`/api/market/quotes${params}`)
 }
 
-/** Fetch K-line data */
-export async function fetchKline(_code: string, days: number = 120) {
-  await delay(200)
-  return generateKlineData(days)
+/** Fetch K-line */
+export async function fetchKline(code: string, days: number = 120, period: string = 'day'): Promise<KLineDataPoint[]> {
+  return apiFetch<KLineDataPoint[]>(`/api/market/kline?code=${code}&days=${days}&period=${period}`)
 }
 
-/** Fetch sector data */
-export async function fetchSectors(_count: number = 30): Promise<Sector[]> {
-  await delay()
-  return sectorData
+/** Fetch sectors */
+export async function fetchSectors(type: string = 'industry', count: number = 30): Promise<Sector[]> {
+  return apiFetch<Sector[]>(`/api/market/sectors?type=${type}&count=${count}`)
 }
 
-/** Fetch capital flow */
-export async function fetchCapitalFlow(_count: number = 10): Promise<CapitalFlow[]> {
-  await delay()
-  return capitalFlowData
+/** Fetch capital flow ranking */
+export async function fetchCapitalFlowRanking(count: number = 10): Promise<CapitalFlow[]> {
+  return apiFetch<CapitalFlow[]>(`/api/market/flow?count=${count}`)
+}
+
+/** Fetch individual stock capital flow */
+export async function fetchCapitalFlow(code: string): Promise<CapitalFlow> {
+  return apiFetch<CapitalFlow>(`/api/market/flow?code=${code}`)
 }
 
 /** Fetch LHB data */
-export async function fetchLHB(): Promise<{ lhb: LHBRecord[], inst: LHBInstitution[], limitUp: LimitUpStock[] }> {
-  await delay()
-  return { lhb: lhbData, inst: lhbInstData, limitUp: limitUpList }
+export async function fetchLHB(): Promise<{ lhb: LHBRecord[]; institutions: LHBInstitution[]; limitUp: LimitUpStock[] }> {
+  return apiFetch('/api/market/lhb')
 }
 
-/** Fetch screener data */
+/** Search stocks */
+export async function searchStocks(q: string): Promise<Pick<Stock, 'code' | 'name'>[]> {
+  return apiFetch(`/api/market/search?q=${encodeURIComponent(q)}`)
+}
+
+/** Fetch screener pool */
 export async function fetchScreenerPool(): Promise<ScreenerStock[]> {
-  await delay(200)
-  return screenerStockPool
+  return apiFetch<ScreenerStock[]>('/api/screener/pool')
+}
+
+/** Fetch preset strategies */
+export async function fetchStrategies(): Promise<PresetStrategy[]> {
+  return apiFetch<PresetStrategy[]>('/api/screener/strategies')
+}
+
+/** Login */
+export async function login(phone: string, password: string): Promise<{ token: string; user: any }> {
+  return apiFetch('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ phone, password }),
+  })
+}
+
+/** Register */
+export async function register(phone: string, password: string, name?: string): Promise<{ token: string; user: any }> {
+  return apiFetch('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ phone, password, name }),
+  })
+}
+
+/** Get current user */
+export async function fetchMe(): Promise<any> {
+  return apiFetch('/api/auth/me')
 }
 
 /** Load all live data in parallel */
 export async function loadLiveData() {
-  await delay(100)
-  return {
-    indices: mockIndices,
-    quotes: watchlistData,
-    sectors: sectorData,
-    flow: capitalFlowData,
-  }
+  const [indices, quotes, sectors, flow] = await Promise.all([
+    fetchIndices().catch(() => []),
+    fetchQuotes().catch(() => []),
+    fetchSectors().catch(() => []),
+    fetchCapitalFlowRanking().catch(() => []),
+  ])
+  return { indices, quotes, sectors, flow }
 }
