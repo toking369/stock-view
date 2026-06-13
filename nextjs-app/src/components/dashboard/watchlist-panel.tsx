@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { fetchQuotes } from '@/lib/api'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { fetchQuotes, fetchWatchlist, addWatchlist, removeWatchlist } from '@/lib/api'
 import { fmtNum } from '@/lib/utils'
 import ReactECharts from 'echarts-for-react'
 
@@ -27,21 +27,35 @@ const intradayTimes = Array.from({ length: 240 }, (_, i) => {
 
 const DEFAULT_WATCHLIST = ['600519', '300750', '601318', '600036', '300059', '000858', '002594', '000333', '603259', '600030']
 
-function loadWatchlist(): string[] {
+function isLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!localStorage.getItem('stockview_token')
+}
+
+function loadLocalWatchlist(): string[] {
   if (typeof window === 'undefined') return DEFAULT_WATCHLIST
   try {
     const saved = localStorage.getItem('stockview_watchlist')
     if (saved) {
       const parsed = JSON.parse(saved)
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_WATCHLIST
+      if (Array.isArray(parsed)) return parsed
     }
   } catch {}
   return DEFAULT_WATCHLIST
 }
 
-function saveWatchlist(codes: string[]) {
+function saveLocalWatchlist(codes: string[]) {
   if (typeof window === 'undefined') return
   localStorage.setItem('stockview_watchlist', JSON.stringify(codes))
+}
+
+async function loadServerWatchlist(): Promise<string[] | null> {
+  if (!isLoggedIn()) return null
+  try {
+    return await fetchWatchlist()
+  } catch {
+    return null // fallback to local
+  }
 }
 
 export function WatchlistPanel() {
@@ -52,30 +66,44 @@ export function WatchlistPanel() {
   const [quotes, setQuotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [watchlistCodes, setWatchlistCodes] = useState<string[]>(loadWatchlist)
+  const [watchlistCodes, setWatchlistCodes] = useState<string[]>(loadLocalWatchlist)
 
-  const loadData = (codes: string[]) => {
+  const loadData = useCallback((codes: string[]) => {
     setLoading(true)
     fetchQuotes(codes)
       .then(data => { setQuotes(data); setLoading(false); setSelectedIdx(0) })
       .catch(e => { setError(e.message); setLoading(false) })
-  }
+  }, [])
 
+  // On mount: try server watchlist first, fallback to local
   useEffect(() => {
-    loadData(watchlistCodes)
+    loadServerWatchlist().then(serverCodes => {
+      if (serverCodes !== null) {
+        // Logged in — use server data (even if empty for new users)
+        setWatchlistCodes(serverCodes)
+        saveLocalWatchlist(serverCodes)
+        if (serverCodes.length > 0) loadData(serverCodes)
+        else { setQuotes([]); setLoading(false) }
+      } else {
+        // Not logged in or server error — use localStorage default
+        loadData(loadLocalWatchlist())
+      }
+    })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggleWatchlist = (code: string) => {
+  const toggleWatchlist = useCallback(async (code: string) => {
     let newCodes: string[]
     if (watchlistCodes.includes(code)) {
       newCodes = watchlistCodes.filter(c => c !== code)
+      if (isLoggedIn()) await removeWatchlist(code).catch(() => {})
     } else {
       newCodes = [...watchlistCodes, code]
+      if (isLoggedIn()) await addWatchlist(code).catch(() => {})
     }
     setWatchlistCodes(newCodes)
-    saveWatchlist(newCodes)
+    saveLocalWatchlist(newCodes)
     loadData(newCodes)
-  }
+  }, [watchlistCodes, loadData])
 
   const filtered = useMemo(() => {
     let list = [...quotes]

@@ -12,8 +12,8 @@ export default function LoginPage() {
   const toastTimeoutRef = useRef<NodeJS.Timeout>(undefined as unknown as NodeJS.Timeout)
 
   // Login form state
-  const [loginUser, setLoginUser] = useState('demo')
-  const [loginPwd, setLoginPwd] = useState('Demo@123456')
+  const [loginUser, setLoginUser] = useState('')
+  const [loginPwd, setLoginPwd] = useState('')
   const [loginUserErr, setLoginUserErr] = useState('')
   const [loginPwdErr, setLoginPwdErr] = useState('')
   const [remember, setRemember] = useState(false)
@@ -57,6 +57,10 @@ export default function LoginPage() {
       const res = await login(loginUser, loginPwd)
       localStorage.setItem('stockview_token', res.token)
       localStorage.setItem('stockview_user', JSON.stringify(res.user))
+      // Sync watchlist for the dashboard panel
+      if (res.user.watchlist) {
+        localStorage.setItem('stockview_watchlist', JSON.stringify(res.user.watchlist))
+      }
       setLoginBtnText('登录成功')
       if (remember) localStorage.setItem('stockview_remember', 'true')
       setTimeout(() => window.location.href = '/dashboard', 300)
@@ -82,6 +86,10 @@ export default function LoginPage() {
       const res = await register(regUser, regPwd, regUser)
       localStorage.setItem('stockview_token', res.token)
       localStorage.setItem('stockview_user', JSON.stringify(res.user))
+      // Sync watchlist for the dashboard panel
+      if (res.user.watchlist) {
+        localStorage.setItem('stockview_watchlist', JSON.stringify(res.user.watchlist))
+      }
       setRegUser(''); setRegPwd(''); setRegConfirm('')
       showToast('注册成功', 'success')
       setTimeout(() => window.location.href = '/dashboard', 500)

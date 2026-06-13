@@ -19,6 +19,15 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
     },
   })
   if (!res.ok) {
+    // Auto-logout on 401 (skip auth endpoints to avoid redirect loop on login page)
+    if (res.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/auth/register')) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('stockview_token')
+        localStorage.removeItem('stockview_user')
+        localStorage.removeItem('stockview_watchlist')
+        window.location.href = '/login'
+      }
+    }
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
     throw new Error(err.error || `请求失败 (${res.status})`)
   }
@@ -95,5 +104,26 @@ export async function register(username: string, password: string, name?: string
 /** Get current user */
 export async function fetchMe(): Promise<any> {
   return apiFetch('/api/auth/me')
+}
+
+/** Fetch watchlist from server */
+export async function fetchWatchlist(): Promise<string[]> {
+  const res = await apiFetch<{ watchlist: string[] }>('/api/user/watchlist')
+  return res.watchlist
+}
+
+/** Add stock to watchlist on server */
+export async function addWatchlist(code: string): Promise<void> {
+  await apiFetch('/api/user/watchlist', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
+}
+
+/** Remove stock from watchlist on server */
+export async function removeWatchlist(code: string): Promise<void> {
+  await apiFetch(`/api/user/watchlist/${code}`, {
+    method: 'DELETE',
+  })
 }
 

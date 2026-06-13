@@ -5,12 +5,6 @@
 
 import pool from './connection'
 
-const DEMO_USER = {
-  username: 'demo',
-  password: 'Demo@123456',
-  nickname: 'Demo User',
-}
-
 let initialized = false
 
 export async function initDatabase() {
@@ -458,38 +452,6 @@ export async function initDatabase() {
     // ════════════════════════════════════════════════════
     //  Seed data
     // ════════════════════════════════════════════════════
-
-    // -- Demo users --
-    await pool.query(
-      `INSERT INTO users (username, password, nickname, role, status)
-       VALUES (?, ?, ?, 'user', 'active')`,
-      [DEMO_USER.username, DEMO_USER.password, DEMO_USER.nickname]
-    )
-    await pool.query(
-      `INSERT INTO users (username, password, nickname, role, status)
-       VALUES ('admin', ?, '管理员', 'admin', 'active')`,
-      [DEMO_USER.password]
-    )
-
-    // -- Demo watchlist (user_id = 1) --
-    const watchlistItems = [
-      ['600519.SH', 0, '贵州茅台 — 白酒龙头'],
-      ['300750.SZ', 1, '宁德时代 — 新能源'],
-      ['601318.SH', 2, '中国平安 — 保险'],
-      ['600036.SH', 3, '招商银行 — 银行'],
-      ['300059.SZ', 4, '东方财富 — 券商'],
-      ['000858.SZ', 5, '五粮液 — 白酒'],
-      ['002594.SZ', 6, '比亚迪 — 新能源车'],
-      ['000333.SZ', 7, '美的集团 — 家电'],
-      ['603259.SH', 8, '药明康德 — CRO'],
-      ['600030.SH', 9, '中信证券 — 券商'],
-    ]
-    for (const [ts_code, sort_order, note] of watchlistItems) {
-      await pool.query(
-        `INSERT INTO watchlist (user_id, ts_code, sort_order, note) VALUES (1, ?, ?, ?)`,
-        [ts_code, sort_order, note]
-      )
-    }
 
     // -- Preset screener strategies --
     const presetStrategies = [
