@@ -26,7 +26,7 @@ export function WatchlistPanel() {
       list = list.filter(s => s.name.includes(q) || s.code.includes(q))
     }
     if (sortCol >= 0) {
-      const keys = ['name', 'code', 'price', 'change', 'changeAmount', 'vol', 'amount', 'turnover', 'pe', 'amplitude', 'volumeRatio']
+      const keys = ['name', 'code', 'price', 'change', 'changeAmount', 'vol', 'amount', 'turnover', 'outerVol', 'innerVol', 'volumeRatio']
       const key = keys[sortCol]
       list.sort((a, b) => {
         const va = (a as any)[key]; const vb = (b as any)[key]
@@ -41,7 +41,7 @@ export function WatchlistPanel() {
     if (sortCol === col) setSortAsc(!sortAsc)
     else { setSortCol(col); setSortAsc(col === 3 ? false : true) }
   }
-  const cols = ['名称', '代码', '最新价', '涨跌幅', '涨跌额', '成交量(手)', '成交额', '换手率', '市盈率', '振幅', '量比']
+  const cols = ['名称', '代码', '最新价', '涨跌幅', '涨跌额', '成交量(手)', '成交额', '换手率', '外盘', '内盘', '量比']
 
   if (loading) return <div className="panel-loading" style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载中...</div>
   if (error) return <div className="panel-error" style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{error}</div>
@@ -79,8 +79,8 @@ export function WatchlistPanel() {
                     <td>{s.vol.toLocaleString()}</td>
                     <td>{fmtNum(s.amount)}</td>
                     <td>{s.turnover}%</td>
-                    <td>{s.pe}</td>
-                    <td>{s.amplitude}%</td>
+                    <td>{s.outerVol?.toLocaleString() || '0'}</td>
+                    <td>{s.innerVol?.toLocaleString() || '0'}</td>
                     <td>{s.volumeRatio}</td>
                   </tr>
                 )
