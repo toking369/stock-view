@@ -4,92 +4,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-StockView — A股中短线看盘工作台。当前为纯前端 SPA，计划引入 Next.js App Router 后端。
+StockView — A股中短线看盘工作台。
 
-- **前端**：Vanilla JS SPA（单 HTML 文件 + ECharts）
-- **计划后端**：Next.js App Router + TypeScript + better-sqlite3
-- **数据源**：东方财富公开 API（JSONP）、计划接入山西证券 TSDP Tushare API
-- **存储**：LocalStorage（当前）→ SQLite（计划）
+- **前端**：Next.js 16 App Router + TypeScript + shadcn/ui + Tailwind CSS v4 + ECharts
+- **后端**：Next.js Route Handlers (API) + WebSocket (自定义 server.ts)
+- **数据源**：Mock（当前）→ 东方财富 API → TSDP Tushare API（计划）
+- **存储**：LocalStorage（当前）→ SQLite/better-sqlite3（计划）
 
-## Key Files
-
-| 文件 | 说明 |
-|------|------|
-| `fontend/index.html` | 主应用，7 个功能模块 + AI 引擎 + ECharts 可视化 |
-| `fontend/login.html` | 登录/注册页，LocalStorage 认证 |
-| `产品文档/CODE_WIKI.md` | 项目完整开发文档 |
-| `技术文档/后端技术方案选型报告.md` | 后端架构设计（Next.js App Router） |
-
-## Architecture (Current)
+## Structure
 
 ```
-fontend/index.html (SPA)
-├── CSS: Dark Financial Terminal (CSS Custom Properties)
-├── JS Modules:
-│   ├── Watchlist      (#mod-watchlist)
-│   ├── K-line Analysis (#mod-kline)      — ECharts Candlestick
-│   ├── Sector Heatmap  (#mod-heatmap)    — ECharts Treemap
-│   ├── Capital Flow    (#mod-flow)       — ECharts Bar
-│   ├── Dragon Tiger    (#mod-lhb)        — Limit-up statistics
-│   ├── Stock Screener  (#mod-screener)   — Strategy-based filtering
-│   └── AI Chat         (#mod-aichat)     — Intent engine (rule-based)
-├── Data Layer:
-│   ├── JSONP wrapper   (jsonp function)
-│   ├── EM API calls    (fetchIndices/fetchQuotes/fetchKline/...)
-│   ├── Mock data       (watchlistData/sectorData/capitalFlowData)
-│   └── Technical indicators (calcMA/calcMACD/calcKDJ/calcRSI/calcBOLL)
-└── ECharts 5.5         (CDN via jsdelivr)
+stock-view/
+├── fontend/                   # 旧版 Vanilla JS SPA（保留参考）
+│   ├── index.html             # 主应用（7模块 + AI引擎 + ECharts）
+│   └── login.html             # 登录/注册页
+├── nextjs-app/                # 新版 Next.js 全栈应用（当前开发目录）
+│   ├── server.ts              # 自定义服务器（Next.js + WebSocket）
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── layout.tsx     # 根布局（深色主题 + Inter/JetBrains Mono）
+│   │   │   ├── page.tsx       # / → 重定向 /login
+│   │   │   ├── login/         # 登录/注册页（shadcn/ui）
+│   │   │   ├── dashboard/     # 仪表盘路由组（侧边栏+顶栏布局）
+│   │   │   │   ├── page.tsx         # 自选股
+│   │   │   │   ├── kline/page.tsx   # K线分析
+│   │   │   │   ├── heatmap/page.tsx # 板块热力图
+│   │   │   │   ├── flow/page.tsx    # 资金流向
+│   │   │   │   ├── lhb/page.tsx     # 龙虎榜
+│   │   │   │   ├── screener/page.tsx# 选股器
+│   │   │   │   └── aichat/page.tsx  # AI问答
+│   │   │   └── api/               # Route Handlers
+│   │   │       ├── health/route.ts
+│   │   │       ├── market/route.ts # indices/kline/sectors/flow/lhb/search
+│   │   │       └── auth/route.ts   # login/register
+│   │   ├── components/
+│   │   │   ├── dashboard/       # 7个面板组件 + sidebar/topbar
+│   │   │   └── ui/              # shadcn/ui 组件
+│   │   └── lib/
+│   │       ├── utils.ts         # cn(), fmtNum(), formatAiText()
+│   │       ├── mock-data.ts     # Mock 数据（15只股票/30板块...）
+│   │       ├── indicators.ts    # MA/MACD/KDJ/RSI/BOLL
+│   │       ├── ai-engine.ts     # 规则驱动 AI 引擎
+│   │       ├── api.ts           # API 层（mock）
+│   │       ├── cache/           # 内存 LRU 缓存
+│   │       ├── db/              # 数据库层（stub）
+│   │       ├── services/        # 数据服务（eastmoney.ts）
+│   │       ├── ws/              # WebSocket 处理
+│   │       └── jobs/            # 定时任务
+│   └── package.json
+├── 产品文档/CODE_WIKI.md        # 产品开发文档
+└── 技术文档/后端技术方案选型报告.md   # 架构设计文档
 ```
 
-### Module Switching
+## Key Data Structures
 
-All 7 modules are `<section>` elements with class `module-panel`. `switchModule(mod)` toggles `.active` class and calls the corresponding `init*Chart()` function for lazy chart initialization.
-
-### Key Data Structures
-
-- **watchlistData** — Array of stock objects (code/name/price/change/vol/…). Source of truth for user's portfolio.
-- **sectorData** — Array `{name, change, volume}`. Used by heatmap Treemap + rank list.
-- **capitalFlowData** — Array `{code, name, price, change, inflow, outflow, net, ratio}`. Used by flow bars + table.
-- **klineData** — Array `{date, open, close, high, low, vol}`. Generated or fetched, consumed by ECharts candlestick.
-
-### Data Fetching
-
-`loadLiveData()` parallel-fetches indices/quotes/sectors/flow via `Promise.allSettled`. Switches to `_dataSource = 'live'` on first success; falls back to mock. K-line is loaded separately via `loadKlineLive()`.
-
-### AI Engine
-
-`aiEngine` object with three phases:
-1. **parseIntent** — Regex-based intent/topic/stock detection from user text
-2. **generate** — Routes to specialized generators (stock analysis, comparison, market summary, sector flow, LHB, recommendation)
-3. **generateStockAnalysis** — Simulates technical indicators from stock data (no real API call)
-
-## Architecture (Planned — Next.js Backend)
-
-```
-stock-view-server/
-├── server.ts               # Custom HTTP server (Next.js + WebSocket)
-├── src/app/api/*/route.ts  # Route Handlers (文件即路由)
-├── src/middleware.ts        # CORS + rate limiting
-├── src/lib/services/        # Data services (tushare.ts, eastmoney.ts, screener.ts, indicator.ts)
-├── src/lib/db/              # SQLite (better-sqlite3)
-├── src/lib/cache/           # In-memory caching (LRU + TTL)
-├── src/ws/                  # WebSocket (real-time market push)
-└── src/jobs/                # cron tasks (data refresh)
-```
-
-See [技术文档/后端技术方案选型报告.md](技术文档/后端技术方案选型报告.md) for full architecture detail.
+见 `src/types/index.ts` — Stock, Index, KLineDataPoint, Sector, CapitalFlow, LHBRecord, ChatSession, ScreenerFilters 等。
 
 ## Commands
 
 ```bash
-# Current — run SPA locally via HTTP server
-python -m http.server 8000     # then visit localhost:8000/fontend/login.html
+# 新版 Next.js 项目
+cd nextjs-app
 
-# Future — Next.js backend development
-npm run dev                     # tsx watch server.ts
-npm run build                   # next build
-npm run start                   # NODE_ENV=production tsx server.ts
-npm test                        # vitest
+# 开发模式（标准 Next.js）
+npm run dev              # → http://localhost:3000
+
+# 开发模式（+ WebSocket 实时推送）
+npm run dev:server       # → http://localhost:3000 + ws://localhost:3000/ws
+
+# 构建
+npm run build
+
+# 生产运行
+npm run start:server
+
+# API 端点
+curl http://localhost:3000/api/health
+curl http://localhost:3000/api/market?type=indices
+curl http://localhost:3000/api/auth -X POST -d '{"action":"login","phone":"13800138000","password":"123456"}'
+
+# 旧版 SPA（保留参考）
+cd stock-view
+python -m http.server 8000     # → localhost:8000/fontend/login.html
 ```
 
 ## Demo Account
@@ -102,13 +98,13 @@ npm test                        # vitest
 
 ## Color System
 
-A股红涨绿跌（与国际市场相反）：`--rise: #ef4444` 红色涨 / `--fall: #22c55e` 绿色跌。CSS variables 在 `:root` 中定义。
+A股红涨绿跌（与国际市场相反）：`--rise: #ef4444` 红色涨 / `--fall: #22c55e` 绿色跌。CSS variables 在 `globals.css` 的 `:root` 中定义。
 
-## Data Source Migration Plan
+## Development Notes
 
-1. Current: JSONP → 东方财富公开 API → Mock fallback
-2. Phase 1: Route Handler proxy → 东方财富 API（替代 JSONP 直连）
-3. Phase 2: Route Handler proxy → TSDP Tushare API（主数据源）
-4. Phase 3: WebSocket 推送替代轮询
-
-TSDP 接口需山西证券开户 + PTrade token，配置于服务端 `.env`。
+- 使用 `'use client'`  directive 标记客户端组件（所有 panel 组件）
+- API routes 默认返回 mock 数据，后续替换为真实数据源
+- ECharts 通过 `echarts-for-react` 集成
+- shadcn/ui 组件的暗色主题在 `globals.css` 的 `:root` 中自定义
+- WebSocket 仅在使用 `npm run dev:server` 时启动，标准 `npm run dev` 不包含 WS
+- `better-sqlite3` 需要 Visual Studio C++ 构建工具，暂未安装
