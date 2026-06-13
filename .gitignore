@@ -23,6 +23,12 @@ out/
 # Playwright MCP artifacts
 .playwright-mcp/
 
+# Obsolete — old Vanilla JS SPA (replaced by nextjs-app)
+fontend/
+
+# Project docs (not source code)
+产品文档/
+
 # IDE
 .vscode/settings.json
 .idea/
