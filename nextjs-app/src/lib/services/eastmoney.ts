@@ -81,31 +81,34 @@ function codeToSecid(code: string): string {
 /**
  * Parse a raw East Money quote diff item into a Stock object.
  *
- * East Money fields:
- *  f2  price, f3 change%, f4 changeAmount, f5 vol(hands), f6 amount(yuan),
- *  f7 turnover%, f8 PE, f10 volumeRatio, f12 code, f14 name,
+ * For batch endpoint (ulist.np/get):
+ *  f2 price, f3 change%, f4 changeAmount, f5 vol(hands), f6 amount(yuan),
+ *  f7 turnover%, f10 volumeRatio, f12 code, f14 name,
  *  f15 high, f16 low, f17 open, f18 prevClose, f37 amplitude%,
- *  f39 outerVol, f40 innerVol
+ *  f100 industry, f115 pe-ttm, f116 totalCap, f117 floatCap
  */
 function parseQuote(item: Record<string, unknown>): Stock {
+  const change = Number(item.f3 ?? 0)
+  const vol = Number(item.f5 ?? 0)
   return {
     code: String(item.f12 ?? ''),
     name: String(item.f14 ?? ''),
     price: Number(item.f2 ?? 0),
-    change: Number(item.f3 ?? 0),
+    change,
     changeAmount: Number(item.f4 ?? 0),
-    vol: Number(item.f5 ?? 0),
+    vol,
     amount: Math.round((Number(item.f6 ?? 0) / 10000)),
     turnover: Number(item.f7 ?? 0),
-    pe: Number(item.f8 ?? 0),
+    pe: Number(item.f115 ?? 0),      // f115 = PE (TTM), NOT f8
     amplitude: Number(item.f37 ?? 0),
     open: Number(item.f17 ?? 0),
     high: Number(item.f15 ?? 0),
     low: Number(item.f16 ?? 0),
     prevClose: Number(item.f18 ?? 0),
     volumeRatio: Number(item.f10 ?? 0),
-    outerVol: Number(item.f39 ?? 0),
-    innerVol: Number(item.f40 ?? 0),
+    // Batch API doesn't provide outer/inner vol directly; approximate from vol + change
+    outerVol: Math.round(vol * (0.5 + Math.min(Math.abs(change), 10) / 200)),
+    innerVol: Math.round(vol * (0.5 - Math.min(Math.abs(change), 10) / 200)),
   }
 }
 
