@@ -5,7 +5,10 @@ import { quoteCache } from '@/lib/cache'
 export async function GET(req: NextRequest) {
   try {
     const codes = (req.nextUrl.searchParams.get('codes') || '').split(',').filter(Boolean)
-    if (!codes.length) return NextResponse.json({ error: '缺少 codes 参数' }, { status: 400 })
+    if (!codes.length) {
+      // Default to a set of commonly watched stocks
+      codes.push('600519', '300750', '601318', '600036', '300059', '000858', '002594', '000333', '603259', '600030')
+    }
 
     const cacheKey = `quotes:${codes.sort().join(',')}`
     const cached = quoteCache.get(cacheKey)

@@ -1,12 +1,14 @@
-import {
-  watchlistData, sectorData, capitalFlowData,
-  lhbData, lhbInstData, limitUpList,
-  mockIndices
-} from './mock-data'
-import { formatAiText } from './utils'
-import type { ChatMessage, IntentResult } from '@/types'
+/**
+ * AI Engine — intent parsing + context-aware response generation backed by
+ * live data from East Money API (via Next.js route handlers).
+ *
+ * No mock data. All stock, index, sector, flow, and LHB values are fetched
+ * on demand from the same API layer the panels use.
+ */
 
-// Stock alias map
+import type { IntentResult, Stock, Index, Sector, CapitalFlow, LHBRecord, LHBInstitution, LimitUpStock } from '@/types'
+
+// ── Stock alias map ──
 const stockAlias: Record<string, string> = {
   '茅台': '贵州茅台', '五粮液': '五粮液', '宁王': '宁德时代',
   '宁德': '宁德时代', '平安': '中国平安', '招行': '招商银行',
@@ -18,7 +20,7 @@ const stockAlias: Record<string, string> = {
 
 const stockKeywords = Object.keys(stockAlias)
 
-// Intent patterns
+// ── Intent patterns ──
 const intentPatterns: [RegExp, string][] = [
   [/分析|走势|趋势|行情|怎么样|如何|评价/, 'analyze'],
   [/信号|买卖|买入|卖出|加仓|减仓|建仓|清仓|持有/, 'signal'],
@@ -32,19 +34,72 @@ const intentPatterns: [RegExp, string][] = [
   [/选股|策略|筛选|条件/, 'screener'],
 ]
 
+// ── Data fetchers (client-safe, calls our own API routes) ──
+
+async function fetchQuotes(codes: string[]): Promise<Stock[]> {
+  if (!codes.length) return []
+  try {
+    const res = await fetch(`/api/market/quotes?codes=${codes.join(',')}`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+async function fetchIndices(): Promise<Index[]> {
+  try {
+    const res = await fetch('/api/market/indices')
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+async function fetchSectors(type: string = 'industry', count: number = 30): Promise<Sector[]> {
+  try {
+    const res = await fetch(`/api/market/sectors?type=${type}&count=${count}`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+async function fetchCapitalFlowRanking(count: number = 10): Promise<CapitalFlow[]> {
+  try {
+    const res = await fetch(`/api/market/flow?count=${count}`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+async function fetchLHB(): Promise<{ lhb: LHBRecord[]; institutions: LHBInstitution[]; limitUp: LimitUpStock[] }> {
+  try {
+    const res = await fetch('/api/market/lhb')
+    if (!res.ok) return { lhb: [], institutions: [], limitUp: [] }
+    return res.json()
+  } catch {
+    return { lhb: [], institutions: [], limitUp: [] }
+  }
+}
+
+// ── Intent parsing (synchronous) ──
+
 function parseIntent(text: string, hasImage: boolean, _session: any): IntentResult {
   const intents: string[] = []
   const topics: string[] = []
   const targetStocks: string[] = []
   let contextStock: string | null = null
 
-  // Detect image intent
   if (hasImage) {
     intents.push('image_analyze')
     topics.push('visual')
   }
 
-  // Match intent patterns
   for (const [pattern, intent] of intentPatterns) {
     if (pattern.test(text) && !intents.includes(intent)) {
       intents.push(intent)
@@ -53,22 +108,13 @@ function parseIntent(text: string, hasImage: boolean, _session: any): IntentResu
 
   if (intents.length === 0) intents.push('general')
 
-  // Detect stock mentions
+  // Detect stock mentions via alias map
   for (const keyword of stockKeywords) {
     if (text.includes(keyword)) {
       const stockName = stockAlias[keyword]
       if (!targetStocks.includes(stockName)) {
         targetStocks.push(stockName)
       }
-    }
-  }
-
-  // Try to match stock codes: 6 digits
-  const codeMatch = text.match(/\b(\d{6})\b/)
-  if (codeMatch) {
-    const found = watchlistData.find(s => s.code === codeMatch[1])
-    if (found && !targetStocks.includes(found.name)) {
-      targetStocks.push(found.name)
     }
   }
 
@@ -82,13 +128,15 @@ function parseIntent(text: string, hasImage: boolean, _session: any): IntentResu
   return { intents, topics, targetStocks, contextStock }
 }
 
-function generateStockAnalysis(stocks: string[], intents: string[], topics: string[]): string {
-  const stockData = stocks.map(name => watchlistData.find(s => s.name === name)).filter(Boolean)
-  if (stockData.length === 0) {
-    return `未找到"${stocks[0]}"的相关数据，请确认股票名称是否正确。`
+// ── Response generators (all async, fetch real data) ──
+
+async function generateStockAnalysis(stocks: string[], intents: string[], topics: string[]): Promise<string> {
+  const quotes = await fetchQuotes([]) // default watchlist as search pool
+  const s = quotes.find(q => stocks.some(name => q.name.includes(name) || stocks.includes(q.code)))
+  if (!s) {
+    return `未找到"${stocks[0]}"的相关数据，请确认股票名称或代码是否正确。`
   }
 
-  const s = stockData[0]!
   const isUp = s.change >= 0
   const lines: string[] = [
     `### 📊 ${s.name}（${s.code}）技术分析`,
@@ -117,12 +165,13 @@ function generateStockAnalysis(stocks: string[], intents: string[], topics: stri
   return lines.join('\n')
 }
 
-function generateComparison(stocks: string[]): string {
-  const data = stocks.map(name => watchlistData.find(s => s.name === name)).filter(Boolean)
+async function generateComparison(stocks: string[]): Promise<string> {
+  const quotes = await fetchQuotes([])
+  const data = quotes.filter(q => stocks.some(name => q.name.includes(name) || stocks.includes(q.code)))
   if (data.length < 2) return '请指定两只或以上股票进行比较。'
 
-  const lines: string[] = ['### 📊 股票对比分析', '', '| 指标 | ' + data.map(s => s!.name).join(' | ') + ' |', '|' + data.map(() => '---').join('|') + '|']
-  const metrics: [string, (s: any) => string][] = [
+  const lines: string[] = ['### 📊 股票对比分析', '', '| 指标 | ' + data.map(s => s.name).join(' | ') + ' |', '|' + data.map(() => '---').join('|') + '|']
+  const metrics: [string, (s: Stock) => string][] = [
     ['价格', s => s.price.toString()],
     ['涨跌幅', s => s.change.toFixed(2) + '%'],
     ['成交额', s => (s.amount / 10000).toFixed(2) + '亿'],
@@ -133,44 +182,57 @@ function generateComparison(stocks: string[]): string {
     lines.push('| ' + label + ' | ' + data.map(s => fn(s)).join(' | ') + ' |')
   }
   lines.push('', '**综合评价**：')
-  const best = data.reduce((a, b) => (a!.change > b!.change ? a : b))
-  lines.push(`🌟 近期表现最佳：**${best!.name}**（涨跌幅 ${best!.change.toFixed(2)}%）`)
+  const best = data.reduce((a, b) => (a.change > b.change ? a : b))
+  lines.push(`🌟 近期表现最佳：**${best.name}**（涨跌幅 ${best.change.toFixed(2)}%）`)
   return lines.join('\n')
 }
 
-function generateMarketSummary(): string {
-  const sh = mockIndices[0]
-  const sz = mockIndices[1]
-  const cy = mockIndices[2]
+async function generateMarketSummary(): Promise<string> {
+  const indices = await fetchIndices()
+  const sh = indices.find(i => i.code === '1.000001' || i.code === '000001')
+  const sz = indices.find(i => i.code === '0.399001' || i.code === '399001')
+  const cy = indices.find(i => i.code === '0.399006' || i.code === '399006')
+
+  const shPrice = sh?.price ?? 0
+  const shChange = sh?.change ?? 0
+  const szPrice = sz?.price ?? 0
+  const szChange = sz?.change ?? 0
+  const cyPrice = cy?.price ?? 0
+  const cyChange = cy?.change ?? 0
+
   const lines: string[] = [
     '### 📈 大盘概况',
     '',
-    `**上证指数**：${sh.price}（${sh.change >= 0 ? '+' : ''}${sh.change.toFixed(2)}%）`,
-    `**深证成指**：${sz.price}（${sz.change >= 0 ? '+' : ''}${sz.change.toFixed(2)}%）`,
-    `**创业板指**：${cy.price}（${cy.change >= 0 ? '+' : ''}${cy.change.toFixed(2)}%）`,
+    `**上证指数**：${shPrice}（${shChange >= 0 ? '+' : ''}${shChange.toFixed(2)}%）`,
+    `**深证成指**：${szPrice}（${szChange >= 0 ? '+' : ''}${szChange.toFixed(2)}%）`,
+    `**创业板指**：${cyPrice}（${cyChange >= 0 ? '+' : ''}${cyChange.toFixed(2)}%）`,
     '',
     '**今日特点**：',
-    `- 沪市成交约${(Math.random() * 2000 + 3000).toFixed(0)}亿，市场情绪${
-      sh.change > 0.5 ? '偏暖，做多意愿较强' : sh.change > 0 ? '温和，多空相对均衡' : '偏弱，注意风险控制'
+    `- 市场情绪${
+      shChange > 0.5 ? '偏暖，做多意愿较强' : shChange > 0 ? '温和，多空相对均衡' : '偏弱，注意风险控制'
     }`,
-    `- 上涨家数约${Math.round(1000 + Math.random() * 1500)}家，下跌家数约${Math.round(500 + Math.random() * 1000)}家`,
   ]
   return lines.join('\n')
 }
 
-function generateSectorFlow(): string {
-  const sorted = [...sectorData].sort((a, b) => b.change - a.change)
+async function generateSectorFlow(): Promise<string> {
+  const [sectors, flow] = await Promise.all([
+    fetchSectors('industry', 30),
+    fetchCapitalFlowRanking(10),
+  ])
+
+  const sorted = [...sectors].sort((a, b) => b.change - a.change)
   const top3 = sorted.slice(0, 3)
   const bottom3 = sorted.slice(-3)
   const lines: string[] = ['### 🔥 板块资金流向', '', '**涨幅前列**：', '']
   for (const s of top3) {
-    lines.push(`- **${s.name}**：${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}% 成交${(s.volume).toFixed(0)}亿`)
+    lines.push(`- **${s.name}**：${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}% 成交${s.volume}亿`)
   }
   lines.push('', '**跌幅前列**：', '')
   for (const s of bottom3) {
-    lines.push(`- **${s.name}**：${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}% 成交${(s.volume).toFixed(0)}亿`)
+    lines.push(`- **${s.name}**：${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}% 成交${s.volume}亿`)
   }
-  const flowTop = [...capitalFlowData].sort((a, b) => Math.abs(b.net) - Math.abs(a.net)).slice(0, 3)
+  const flowTop = [...flow].sort((a, b) => Math.abs(b.net) - Math.abs(a.net)).slice(0, 3)
   lines.push('', '**主力资金流向**：', '')
   for (const f of flowTop) {
     const direction = f.net >= 0 ? '📥 净流入' : '📤 净流出'
@@ -179,22 +241,42 @@ function generateSectorFlow(): string {
   return lines.join('\n')
 }
 
-function generateLHBAnalysis(): string {
-  const top = [...limitUpList].sort((a, b) => b.days - a.days).slice(0, 3)
-  const lines: string[] = ['### 🐉 龙虎榜分析', '', '**连板龙头**：', '']
-  for (const s of top) {
-    lines.push(`- **${s.name}**（${s.code}）：${s.days}连板，封板率${(s.sealRate * 100).toFixed(0)}%，板块：${s.sector}`)
+async function generateLHBAnalysis(): Promise<string> {
+  const { lhb, institutions, limitUp } = await fetchLHB()
+  const top = [...limitUp].sort((a, b) => b.days - a.days).slice(0, 3)
+
+  const lines: string[] = ['### 🐉 龙虎榜分析']
+
+  if (top.length > 0) {
+    lines.push('', '**连板龙头**：', '')
+    for (const s of top) {
+      lines.push(`- **${s.name}**（${s.code}）：${s.days}连板，封板率${(s.sealRate * 100).toFixed(0)}%${s.sector ? `，板块：${s.sector}` : ''}`)
+    }
   }
-  lines.push('', '**机构动向**：', '')
-  for (const inst of lhbInstData) {
-    const direction = inst.netAmount > 0 ? '买入' : '卖出'
-    lines.push(`- ${inst.name}：机构${direction} ${(Math.abs(inst.netAmount)).toFixed(0)}万，原因：${inst.reason}`)
+
+  if (institutions.length > 0) {
+    lines.push('', '**机构动向**：', '')
+    for (const inst of institutions) {
+      const direction = inst.netAmount > 0 ? '买入' : '卖出'
+      lines.push(`- ${inst.name}：机构${direction} ${(Math.abs(inst.netAmount)).toFixed(0)}万，原因：${inst.reason}`)
+    }
   }
+
+  if (lhb.length > 0) {
+    lines.push('', '**今日上榜**：', '')
+    for (const r of lhb.slice(0, 5)) {
+      lines.push(`- ${r.name}（${r.code}）：净额 ${r.net >= 0 ? '+' : ''}${r.net.toFixed(0)}万`)
+    }
+  }
+
   return lines.join('\n')
 }
 
-function generateRecommendation(): string {
-  const sorted = [...watchlistData].sort((a, b) => b.change - a.change).slice(0, 5)
+async function generateRecommendation(): Promise<string> {
+  const quotes = await fetchQuotes([])
+  const sorted = [...quotes].sort((a, b) => b.change - a.change).slice(0, 5)
+  if (sorted.length === 0) return '暂无数据，请稍后再试。'
+
   const lines: string[] = ['### 🎯 个股推荐', '', '基于近期市场表现，以下个股值得关注：', '']
   for (let i = 0; i < sorted.length; i++) {
     const s = sorted[i]
@@ -204,17 +286,20 @@ function generateRecommendation(): string {
   return lines.join('\n')
 }
 
-function generateWatchlistSummary(): string {
-  const upCount = watchlistData.filter(s => s.change > 0).length
-  const downCount = watchlistData.filter(s => s.change < 0).length
-  const avgChange = watchlistData.reduce((sum, s) => sum + s.change, 0) / watchlistData.length
-  const maxStock = watchlistData.reduce((a, b) => a.change > b.change ? a : b)
-  const minStock = watchlistData.reduce((a, b) => a.change < b.change ? a : b)
+async function generateWatchlistSummary(): Promise<string> {
+  const quotes = await fetchQuotes([])
+  if (quotes.length === 0) return '暂无自选股数据。'
+
+  const upCount = quotes.filter(s => s.change > 0).length
+  const downCount = quotes.filter(s => s.change < 0).length
+  const avgChange = quotes.reduce((sum, s) => sum + s.change, 0) / quotes.length
+  const maxStock = quotes.reduce((a, b) => a.change > b.change ? a : b)
+  const minStock = quotes.reduce((a, b) => a.change < b.change ? a : b)
 
   return [
     '### 📋 自选股概览',
     '',
-    `**总数**：${watchlistData.length}只`,
+    `**总数**：${quotes.length}只`,
     `**上涨/下跌**：${upCount}/${downCount}`,
     `**平均涨跌幅**：${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}%`,
     '',
@@ -253,19 +338,14 @@ function generateFollowUps(intents: string[], topics: string[], stocks: string[]
   return suggestions.slice(0, 4)
 }
 
+// ════════════════════════════════════════════════════════════════
+//  Exported API
+// ════════════════════════════════════════════════════════════════
+
 export const aiEngine = {
   parseIntent,
-  generateStockAnalysis,
-  generateComparison,
-  generateMarketSummary,
-  generateSectorFlow,
-  generateLHBAnalysis,
-  generateRecommendation,
-  generateWatchlistSummary,
-  generateGeneralResponse,
-  generateFollowUps,
 
-  generate(text: string, hasImage: boolean, session: any): { content: string; followUps: string[] } {
+  async generate(text: string, hasImage: boolean, session: any): Promise<{ content: string; followUps: string[] }> {
     const { intents, topics, targetStocks } = this.parseIntent(text, hasImage, session)
     let content: string
 
@@ -284,26 +364,37 @@ export const aiEngine = {
         '请在"选股器"模块中选择策略并运行筛选。',
       ].join('\n')
     } else if (intents.includes('summary')) {
-      content = this.generateMarketSummary()
+      content = await this.generateMarketSummary()
     } else if (intents.includes('sector')) {
-      content = this.generateSectorFlow()
+      content = await this.generateSectorFlow()
     } else if (intents.includes('lhb')) {
-      content = this.generateLHBAnalysis()
+      content = await this.generateLHBAnalysis()
     } else if (intents.includes('recommend') || intents.includes('signal')) {
-      content = this.generateRecommendation()
+      content = await this.generateRecommendation()
     } else if (targetStocks.length >= 2) {
-      content = this.generateComparison(targetStocks)
+      content = await this.generateComparison(targetStocks)
     } else if (targetStocks.length === 1) {
-      content = this.generateStockAnalysis(targetStocks, intents, topics)
+      content = await this.generateStockAnalysis(targetStocks, intents, topics)
     } else if (intents.includes('analyze')) {
       content = '请指定要分析的股票名称或代码，例如"分析贵州茅台"或"分析600519"。'
     } else if (intents.includes('portfolio') || text.includes('自选')) {
-      content = this.generateWatchlistSummary()
+      content = await this.generateWatchlistSummary()
     } else {
       content = this.generateGeneralResponse(text)
     }
 
     const followUps = this.generateFollowUps(intents, topics, targetStocks)
     return { content, followUps }
-  }
+  },
+
+  // Keep sync helpers for testing / external use
+  generateMarketSummary: generateMarketSummary,
+  generateSectorFlow: generateSectorFlow,
+  generateLHBAnalysis: generateLHBAnalysis,
+  generateRecommendation: generateRecommendation,
+  generateWatchlistSummary: generateWatchlistSummary,
+  generateStockAnalysis: generateStockAnalysis,
+  generateComparison: generateComparison,
+  generateGeneralResponse: generateGeneralResponse,
+  generateFollowUps: generateFollowUps,
 }

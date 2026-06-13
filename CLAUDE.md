@@ -92,8 +92,8 @@ python -m http.server 8000     # → localhost:8000/fontend/login.html
 
 | Field | Value |
 |-------|-------|
-| Phone | 13800138000 |
-| Password | 123456 |
+| Username | demo |
+| Password | Demo@123456 |
 | Verification Code | 8888 |
 
 ## Color System

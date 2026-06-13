@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { login, register } from '@/lib/api'
+import { validateUsername, validatePassword, validatePasswordConfirm } from '@/lib/validators'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -10,25 +11,23 @@ export default function LoginPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const toastTimeoutRef = useRef<NodeJS.Timeout>(undefined as unknown as NodeJS.Timeout)
 
-  // Form state
-  const [loginPhone, setLoginPhone] = useState('13800138000')
-  const [loginPwd, setLoginPwd] = useState('123456')
-  const [loginPhoneErr, setLoginPhoneErr] = useState('')
+  // Login form state
+  const [loginUser, setLoginUser] = useState('demo')
+  const [loginPwd, setLoginPwd] = useState('Demo@123456')
+  const [loginUserErr, setLoginUserErr] = useState('')
   const [loginPwdErr, setLoginPwdErr] = useState('')
   const [remember, setRemember] = useState(false)
 
-  const [regPhone, setRegPhone] = useState('')
-  const [regCaptcha, setRegCaptcha] = useState('')
+  // Register form state
+  const [regUser, setRegUser] = useState('')
   const [regPwd, setRegPwd] = useState('')
   const [regConfirm, setRegConfirm] = useState('')
-  const [regPhoneErr, setRegPhoneErr] = useState('')
-  const [regCaptchaErr, setRegCaptchaErr] = useState('')
+  const [regUserErr, setRegUserErr] = useState('')
   const [regPwdErr, setRegPwdErr] = useState('')
   const [regConfirmErr, setRegConfirmErr] = useState('')
-  const [captchaCountdown, setCaptchaCountdown] = useState(0)
+
   const [loginBtnText, setLoginBtnText] = useState('登 录')
   const [loginDisabled, setLoginDisabled] = useState(false)
-  const captchaTimerRef = useRef<NodeJS.Timeout>(undefined as unknown as NodeJS.Timeout)
 
   const showToast = useCallback((msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
@@ -36,42 +35,26 @@ export default function LoginPage() {
     toastTimeoutRef.current = setTimeout(() => setToast(null), 3000)
   }, [])
 
-  const validatePhone = (v: string) => /^1[3-9]\d{9}$/.test(v)
-
   const switchTab = (tab: 'login' | 'register') => {
     setActiveTab(tab)
-    setLoginPhoneErr(''); setLoginPwdErr('')
-    setRegPhoneErr(''); setRegCaptchaErr(''); setRegPwdErr(''); setRegConfirmErr('')
-  }
-
-  const startCaptcha = () => {
-    if (captchaCountdown > 0) return
-    if (!validatePhone(regPhone)) { setRegPhoneErr('请先输入正确的手机号'); return }
-    setCaptchaCountdown(60)
-    showToast('验证码已发送（演示模式：8888）', 'success')
-    captchaTimerRef.current = setInterval(() => {
-      setCaptchaCountdown(prev => {
-        if (prev <= 1) { clearInterval(captchaTimerRef.current!); return 0 }
-        return prev - 1
-      })
-    }, 1000)
+    setLoginUserErr(''); setLoginPwdErr('')
+    setRegUserErr(''); setRegPwdErr(''); setRegConfirmErr('')
   }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoginPhoneErr(''); setLoginPwdErr('')
-    let valid = true
-    if (!loginPhone) { setLoginPhoneErr('请输入手机号'); valid = false }
-    else if (!validatePhone(loginPhone)) { setLoginPhoneErr('请输入正确的11位手机号'); valid = false }
-    if (!loginPwd) { setLoginPwdErr('请输入密码'); valid = false }
-    else if (loginPwd.length < 6) { setLoginPwdErr('密码至少6位'); valid = false }
-    if (!valid) return
+    setLoginUserErr(''); setLoginPwdErr('')
+    const userErr = validateUsername(loginUser)
+    if (userErr) { setLoginUserErr(userErr) }
+    const pwdErr = validatePassword(loginPwd)
+    if (pwdErr) { setLoginPwdErr(pwdErr) }
+    if (userErr || pwdErr) return
 
     setLoginDisabled(true)
     setLoginBtnText('登录中...')
 
     try {
-      const res = await login(loginPhone, loginPwd)
+      const res = await login(loginUser, loginPwd)
       localStorage.setItem('stockview_token', res.token)
       localStorage.setItem('stockview_user', JSON.stringify(res.user))
       setLoginBtnText('登录成功')
@@ -86,28 +69,24 @@ export default function LoginPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    setRegPhoneErr(''); setRegCaptchaErr(''); setRegPwdErr(''); setRegConfirmErr('')
-    let valid = true
-    if (!regPhone) { setRegPhoneErr('请输入手机号'); valid = false }
-    else if (!validatePhone(regPhone)) { setRegPhoneErr('请输入正确的11位手机号'); valid = false }
-    if (!regCaptcha) { setRegCaptchaErr('请输入验证码'); valid = false }
-    else if (regCaptcha !== '8888') { setRegCaptchaErr('验证码错误（演示模式：8888）'); valid = false }
-    if (!regPwd) { setRegPwdErr('请输入密码'); valid = false }
-    else if (regPwd.length < 6) { setRegPwdErr('密码至少6位'); valid = false }
-    if (!regConfirm) { setRegConfirmErr('请确认密码'); valid = false }
-    else if (regConfirm !== regPwd) { setRegConfirmErr('两次输入的密码不一致'); valid = false }
-    if (!valid) return
+    setRegUserErr(''); setRegPwdErr(''); setRegConfirmErr('')
+    const userErr = validateUsername(regUser)
+    if (userErr) { setRegUserErr(userErr) }
+    const pwdErr = validatePassword(regPwd)
+    if (pwdErr) { setRegPwdErr(pwdErr) }
+    const confirmErr = validatePasswordConfirm(regPwd, regConfirm)
+    if (confirmErr) { setRegConfirmErr(confirmErr) }
+    if (userErr || pwdErr || confirmErr) return
 
     try {
-      const autoName = regPhone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
-      const res = await register(regPhone, regPwd, autoName)
+      const res = await register(regUser, regPwd, regUser)
       localStorage.setItem('stockview_token', res.token)
       localStorage.setItem('stockview_user', JSON.stringify(res.user))
-      setRegPhone(''); setRegCaptcha(''); setRegPwd(''); setRegConfirm('')
+      setRegUser(''); setRegPwd(''); setRegConfirm('')
       showToast('注册成功', 'success')
       setTimeout(() => window.location.href = '/dashboard', 500)
     } catch (err: any) {
-      if (err.message.includes('已注册')) setRegPhoneErr(err.message)
+      if (err.message.includes('已注册')) setRegUserErr(err.message)
       else setRegPwdErr(err.message || '注册失败')
     }
   }
@@ -116,7 +95,7 @@ export default function LoginPage() {
     if (localStorage.getItem('stockview_token')) {
       router.push('/dashboard')
     }
-    return () => { clearTimeout(toastTimeoutRef.current); clearInterval(captchaTimerRef.current) }
+    return () => { clearTimeout(toastTimeoutRef.current) }
   }, [router])
 
   return (
@@ -187,76 +166,48 @@ export default function LoginPage() {
               <div className={`form-section${activeTab === 'login' ? ' active' : ''}`}>
                 <form onSubmit={handleLogin} noValidate>
                   <div className="form-group">
-                    <label className="form-label">手机号</label>
-                    <input className={`form-input${loginPhoneErr ? ' error' : ''}`} type="tel" placeholder="13800138000（演示账号）" autoComplete="username" maxLength={11}
-                      value={loginPhone} onChange={e => { setLoginPhone(e.target.value); setLoginPhoneErr('') }}
-                      onBlur={() => { if (loginPhone && !validatePhone(loginPhone)) setLoginPhoneErr('请输入正确的11位手机号') }} />
-                    <div className="form-error">{loginPhoneErr}</div>
+                    <label className="form-label">账号</label>
+                    <input className={`form-input${loginUserErr ? ' error' : ''}`} type="text" placeholder="demo（演示账号）" autoComplete="username"
+                      value={loginUser} onChange={e => { setLoginUser(e.target.value); setLoginUserErr('') }}
+                      onBlur={() => { if (loginUser) setLoginUserErr(validateUsername(loginUser) || '') }} />
+                    <div className="form-error">{loginUserErr}</div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">密码</label>
                     <div className="password-wrap">
-                      <PasswordInput className={`form-input${loginPwdErr ? ' error' : ''}`} placeholder="123456（演示密码）" autoComplete="current-password"
+                      <PasswordInput className={`form-input${loginPwdErr ? ' error' : ''}`} placeholder="Demo@123456（演示密码）" autoComplete="current-password"
                         value={loginPwd} onChange={e => { setLoginPwd(e.target.value); setLoginPwdErr('') }}
-                        onBlur={() => { if (loginPwd && loginPwd.length < 6) setLoginPwdErr('密码至少6位') }} />
+                        onBlur={() => { if (loginPwd) setLoginPwdErr(validatePassword(loginPwd) || '') }} />
                     </div>
                     <div className="form-error">{loginPwdErr}</div>
+                    <a className="forgot-link" href="#" onClick={e => { e.preventDefault(); showToast('密码重置功能开发中', 'error') }}>忘记密码？</a>
                   </div>
                   <div className="form-options">
                     <label className="checkbox-label">
                       <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} /> 记住我
                     </label>
-                    <a className="forgot-link" href="#" onClick={e => { e.preventDefault(); showToast('密码重置功能开发中', 'error') }}>忘记密码？</a>
+                    <a className="switch-link" onClick={() => switchTab('register')}>立即注册</a>
                   </div>
                   <button type="submit" className={`submit-btn${loginDisabled ? ' success' : ''}`} disabled={loginDisabled}>{loginBtnText}</button>
                 </form>
-
-                <div className="auth-divider">或使用以下方式登录</div>
-                <div className="quick-login">
-                  {[
-                    { title: '微信', d: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' },
-                    { title: 'QQ', d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-4 12s1.5 2 4 2 4-2 4-2m-7-3h.01M15 9h.01' },
-                    { title: 'GitHub', d: 'M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22' },
-                  ].map((btn, i) => (
-                    <button key={i} className="quick-btn" title={btn.title} onClick={() => showToast('第三方登录开发中', 'error')}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                        <path d={btn.d} />
-                      </svg>
-                    </button>
-                  ))}
-                </div>
-                <div className="switch-prompt">
-                  还没有账号？ <a className="switch-link" onClick={() => switchTab('register')}>立即注册</a>
-                </div>
               </div>
 
               {/* REGISTER */}
               <div className={`form-section${activeTab === 'register' ? ' active' : ''}`}>
                 <form onSubmit={handleRegister} noValidate>
                   <div className="form-group">
-                    <label className="form-label">手机号</label>
-                    <input className={`form-input${regPhoneErr ? ' error' : ''}`} type="tel" placeholder="请输入11位手机号" maxLength={11} autoComplete="tel"
-                      value={regPhone} onChange={e => { setRegPhone(e.target.value); setRegPhoneErr('') }}
-                      onBlur={() => { if (regPhone && !validatePhone(regPhone)) setRegPhoneErr('请输入正确的11位手机号') }} />
-                    <div className="form-error">{regPhoneErr}</div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">验证码</label>
-                    <div className="captcha-row">
-                      <input className={`form-input${regCaptchaErr ? ' error' : ''}`} type="text" placeholder="请输入验证码" maxLength={6}
-                        value={regCaptcha} onChange={e => { setRegCaptcha(e.target.value); setRegCaptchaErr('') }} />
-                      <button type="button" className="captcha-btn" disabled={captchaCountdown > 0} onClick={startCaptcha}>
-                        {captchaCountdown > 0 ? `${captchaCountdown}s 后重试` : '获取验证码'}
-                      </button>
-                    </div>
-                    <div className="form-error">{regCaptchaErr}</div>
+                    <label className="form-label">账号</label>
+                    <input className={`form-input${regUserErr ? ' error' : ''}`} type="text" placeholder="请设置登录账号" autoComplete="username"
+                      value={regUser} onChange={e => { setRegUser(e.target.value); setRegUserErr('') }}
+                      onBlur={() => { if (regUser) setRegUserErr(validateUsername(regUser) || '') }} />
+                    <div className="form-error">{regUserErr}</div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">密码</label>
                     <div className="password-wrap">
-                      <PasswordInput className={`form-input${regPwdErr ? ' error' : ''}`} placeholder="至少6位密码" autoComplete="new-password"
+                      <PasswordInput className={`form-input${regPwdErr ? ' error' : ''}`} placeholder="6~12位，含字母+数字" autoComplete="new-password"
                         value={regPwd} onChange={e => { setRegPwd(e.target.value); setRegPwdErr('') }}
-                        onBlur={() => { if (regPwd && regPwd.length < 6) setRegPwdErr('密码至少6位') }} />
+                        onBlur={() => { if (regPwd) setRegPwdErr(validatePassword(regPwd) || '') }} />
                     </div>
                     <div className="form-error">{regPwdErr}</div>
                   </div>
@@ -265,7 +216,7 @@ export default function LoginPage() {
                     <div className="password-wrap">
                       <PasswordInput className={`form-input${regConfirmErr ? ' error' : ''}`} placeholder="再次输入密码" autoComplete="new-password"
                         value={regConfirm} onChange={e => { setRegConfirm(e.target.value); setRegConfirmErr('') }}
-                        onBlur={() => { if (regConfirm && regConfirm !== regPwd) setRegConfirmErr('两次输入的密码不一致') }} />
+                        onBlur={() => { if (regConfirm) setRegConfirmErr(validatePasswordConfirm(regPwd, regConfirm) || '') }} />
                     </div>
                     <div className="form-error">{regConfirmErr}</div>
                   </div>

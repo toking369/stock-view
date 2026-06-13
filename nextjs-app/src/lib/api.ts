@@ -77,18 +77,18 @@ export async function fetchStrategies(): Promise<PresetStrategy[]> {
 }
 
 /** Login */
-export async function login(phone: string, password: string): Promise<{ token: string; user: any }> {
+export async function login(username: string, password: string): Promise<{ token: string; user: any }> {
   return apiFetch('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ phone, password }),
+    body: JSON.stringify({ username, password }),
   })
 }
 
 /** Register */
-export async function register(phone: string, password: string, name?: string): Promise<{ token: string; user: any }> {
+export async function register(username: string, password: string, name?: string): Promise<{ token: string; user: any }> {
   return apiFetch('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ phone, password, name }),
+    body: JSON.stringify({ username, password, name }),
   })
 }
 
@@ -97,13 +97,3 @@ export async function fetchMe(): Promise<any> {
   return apiFetch('/api/auth/me')
 }
 
-/** Load all live data in parallel */
-export async function loadLiveData() {
-  const [indices, quotes, sectors, flow] = await Promise.all([
-    fetchIndices().catch(() => []),
-    fetchQuotes().catch(() => []),
-    fetchSectors().catch(() => []),
-    fetchCapitalFlowRanking().catch(() => []),
-  ])
-  return { indices, quotes, sectors, flow }
-}

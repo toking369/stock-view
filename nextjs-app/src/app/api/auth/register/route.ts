@@ -1,25 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { validateUsername, validatePassword } from '@/lib/validators'
 
 export async function POST(req: NextRequest) {
   try {
-    const { phone, password, name } = await req.json()
-    if (!phone || !password) {
-      return NextResponse.json({ error: '手机号和密码不能为空' }, { status: 400 })
+    const { username, password, name } = await req.json()
+
+    const userErr = validateUsername(username)
+    if (userErr) {
+      return NextResponse.json({ error: userErr }, { status: 400 })
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: '密码长度不少于6位' }, { status: 400 })
+    const pwdErr = validatePassword(password)
+    if (pwdErr) {
+      return NextResponse.json({ error: pwdErr }, { status: 400 })
     }
-    const existing = db.findUserByPhone(phone)
+
+    const existing = await db.findUserByUsername(username)
     if (existing) {
-      return NextResponse.json({ error: '该手机号已注册' }, { status: 409 })
+      return NextResponse.json({ error: '该账号已注册' }, { status: 409 })
     }
-    const user = db.createUser(phone, password, name)
+    const user = await db.createUser(username, password, name)
     const token = `stk-token-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    db.saveToken(token, phone)
+    await db.saveToken(token, username)
     return NextResponse.json({
       token,
-      user: { phone: user.phone, name: user.name, watchlist: user.watchlist },
+      user: { username: user.username, name: user.name, watchlist: [] },
     }, { status: 201 })
   } catch {
     return NextResponse.json({ error: '请求格式错误' }, { status: 400 })

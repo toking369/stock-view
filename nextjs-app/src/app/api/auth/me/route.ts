@@ -6,17 +6,18 @@ export async function GET(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: '未登录' }, { status: 401 })
   }
-  const phone = db.getPhoneByToken(token)
-  if (!phone) {
+  const username = await db.getUsernameByToken(token)
+  if (!username) {
     return NextResponse.json({ error: 'Token 无效或已过期' }, { status: 401 })
   }
-  const user = db.findUserByPhone(phone)
+  const user = await db.findUserByUsername(username)
   if (!user) {
     return NextResponse.json({ error: '用户不存在' }, { status: 401 })
   }
+  const watchlist = await db.getWatchlist(username)
   return NextResponse.json({
-    phone: user.phone,
+    username: user.username,
     name: user.name,
-    watchlist: user.watchlist,
+    watchlist,
   })
 }

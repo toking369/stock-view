@@ -270,9 +270,9 @@ export function AIChatPanel() {
     setPendingImages((prev) => prev.filter((_, i) => i !== idx))
   }, [])
 
-  // ── Send Message ─────────────────────────────────
+  // ── Send Message (async — fetches live data from API) ──
   const sendMessage = useCallback(
-    (overrideText?: string) => {
+    async (overrideText?: string) => {
       const text = (overrideText ?? input).trim()
       if (!text && pendingImages.length === 0) return
       if (!activeSessionId || isTyping) return
@@ -316,10 +316,7 @@ export function AIChatPanel() {
       setInput('')
       setPendingImages([])
 
-      // Generate AI response
-      const { content } = aiEngine.generate(text, hasImages, null)
-
-      // Insert placeholder AI message
+      // Insert placeholder AI message (shows loading indicator)
       setChatSessions((prev) =>
         prev.map((s) =>
           s.id === sessionId
@@ -340,9 +337,15 @@ export function AIChatPanel() {
         ),
       )
 
-      // Start character-by-character typing effect
+      // Set loading state while AI generates
       setIsTyping(true)
       setTypingMsgId(aiMsgId)
+      setTypingContent('')
+
+      // Generate AI response (async — fetches live data from API)
+      const { content } = await aiEngine.generate(text, hasImages, null)
+
+      // Start character-by-character typing effect
       setTypingContent('')
 
       let idx = 0

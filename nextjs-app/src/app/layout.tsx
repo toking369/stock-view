@@ -24,7 +24,12 @@ export const viewport = 'width=device-width, initial-scale=1'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN" className={`${inter.variable} ${jetbrainsMono.variable} dark h-full`}>
+    <html lang="zh-CN" className={`${inter.variable} ${jetbrainsMono.variable} dark h-full`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{
+          __html: `(function(){try{var t=localStorage.getItem('sv_theme');if(t==='light')document.documentElement.className=document.documentElement.className.replace('dark','light');}catch(e){}})()`
+        }} />
+      </head>
       <body className="h-full antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>
