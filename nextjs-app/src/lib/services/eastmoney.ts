@@ -314,16 +314,17 @@ export class EastMoneyService {
   /** Search stocks by keyword (code or name). */
   async searchStocks(query: string): Promise<Pick<Stock, 'code' | 'name'>[]> {
     if (!query.trim()) return []
-    const url = `${API.SEARCH}?type=3&keyword=${encodeURIComponent(query)}`
-    const data = await fetchJSON<{ data?: { Code?: string; Name?: string; Type?: string }[] }>(url)
-    const items = data?.data ?? []
-    return items
-      .filter((i) => i.Type === '3')
-      .slice(0, 10)
-      .map((item) => ({
-        code: String(item.Code ?? ''),
-        name: String(item.Name ?? ''),
-      }))
+    const url = `${API.SEARCH}?input=${encodeURIComponent(query)}&count=10&type=14`
+    const data = await fetchJSON<{
+      QuotationCodeTable?: {
+        Data?: { Code?: string; Name?: string }[]
+      }
+    }>(url)
+    const items = data?.QuotationCodeTable?.Data ?? []
+    return items.slice(0, 10).map((item) => ({
+      code: String(item.Code ?? ''),
+      name: String(item.Name ?? ''),
+    }))
   }
 
   /** Fetch a ranked list of all stocks (used by the screener). */
