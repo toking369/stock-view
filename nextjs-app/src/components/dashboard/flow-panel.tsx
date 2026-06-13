@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
-import { capitalFlowData } from '@/lib/mock-data'
+import { useMemo, useState, useCallback, useEffect } from 'react'
+import { fetchCapitalFlowRanking } from '@/lib/api'
 import { fmtNum } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -18,7 +18,14 @@ export function FlowPanel() {
   const [sortField, setSortField] = useState<SortField>('net')
   const [sortAsc, setSortAsc] = useState(false)
 
-  const flowData = capitalFlowData
+  const [flowData, setFlowData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchCapitalFlowRanking(10)
+      .then(data => { setFlowData(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
 
   // --- Summary stats ---------------------------------------------------------
   const stats = useMemo(() => {
@@ -96,6 +103,8 @@ export function FlowPanel() {
       </span>
     )
   }
+
+  if (loading) return <div className="panel-loading" style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载资金流向数据中...</div>
 
   return (
     <div>
