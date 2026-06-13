@@ -67,12 +67,10 @@ export function WatchlistPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [watchlistCodes, setWatchlistCodes] = useState<string[]>(loadLocalWatchlist)
-  // Add stock dialog
-  const [showAddDialog, setShowAddDialog] = useState(false)
-  const [addSearch, setAddSearch] = useState('')
+  // Add stock search (from main search dropdown)
   const [addResults, setAddResults] = useState<{ code: string; name: string }[]>([])
   const [addSearching, setAddSearching] = useState(false)
-  const addRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
 
   const loadData = useCallback((codes: string[]) => {
     setLoading(true)
@@ -97,33 +95,31 @@ export function WatchlistPanel() {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Add-stock search: debounce 300ms
+  // Debounced market search from main search input
   useEffect(() => {
-    if (!addSearch.trim()) { setAddResults([]); return }
+    if (!search.trim()) { setAddResults([]); return }
     const timer = setTimeout(async () => {
       setAddSearching(true)
       try {
-        const results = await searchStocks(addSearch.trim())
+        const results = await searchStocks(search.trim())
         setAddResults(results)
       } catch { setAddResults([]) }
       setAddSearching(false)
     }, 300)
     return () => clearTimeout(timer)
-  }, [addSearch])
+  }, [search])
 
-  // Click outside to close add dialog
+  // Click outside to close search dropdown
   useEffect(() => {
-    if (!showAddDialog) return
+    if (!search.trim()) return
     const handler = (e: MouseEvent) => {
-      if (addRef.current && !addRef.current.contains(e.target as Node)) {
-        setShowAddDialog(false)
-        setAddSearch('')
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setAddResults([])
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [showAddDialog])
+  }, [search])
 
   const toggleWatchlist = useCallback(async (code: string) => {
     let newCodes: string[]
@@ -175,89 +171,63 @@ export function WatchlistPanel() {
           <div className="panel-title">自选股看板</div>
           <div className="panel-subtitle">已添加 {filtered.length} 只自选股</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input className="stock-select-input" placeholder="筛选自选股..." value={search}
-            onChange={e => setSearch(e.target.value)} style={{ width: 160 }} />
-          <div ref={addRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowAddDialog(!showAddDialog); setAddSearch(''); setAddResults([]) }}
-              title="添加自选股"
-              style={{
-                width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)',
-                background: showAddDialog ? 'var(--bg-hover)' : 'var(--bg-card)',
-                color: 'var(--fg-secondary)', cursor: 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 600,
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = showAddDialog ? 'var(--bg-hover)' : 'var(--bg-card)'}
-            >+</button>
-            {showAddDialog && (
-              <div style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                width: 320, maxHeight: 360, overflow: 'auto',
-                background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                zIndex: 100, padding: 8,
-              }}>
-                <input
-                  autoFocus
-                  placeholder="输入股票代码或名称搜索..."
-                  value={addSearch}
-                  onChange={e => setAddSearch(e.target.value)}
-                  style={{
-                    width: '100%', padding: '8px 10px', fontSize: 13, borderRadius: 6,
-                    border: '1px solid var(--border)', background: 'var(--bg-secondary)',
-                    color: 'var(--fg)', outline: 'none', boxSizing: 'border-box',
+        <div ref={searchRef} style={{ position: 'relative' }}>
+          <input className="stock-select-input"
+            placeholder="搜索股票代码/名称添加自选股..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: 260 }}
+          />
+          {addResults.length > 0 && search.trim() && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+              width: 320, maxHeight: 360, overflow: 'auto',
+              background: 'var(--bg-panel)', border: '1px solid var(--border)',
+              borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              zIndex: 100, padding: 8,
+            }}>
+              {addSearching && <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--fg-dim)' }}>搜索中...</div>}
+              {!addSearching && addResults.map(r => {
+                const alreadyAdded = watchlistCodes.includes(r.code)
+                return (
+                  <div key={r.code} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 6px', borderRadius: 4,
+                    opacity: alreadyAdded ? 0.5 : 1,
+                    cursor: alreadyAdded ? 'default' : 'pointer',
                   }}
-                />
-                {addSearching && <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--fg-dim)' }}>搜索中...</div>}
-                {!addSearching && addResults.length === 0 && addSearch.trim() && (
-                  <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--fg-dim)' }}>未找到匹配的股票</div>
-                )}
-                {addResults.map(r => {
-                  const alreadyAdded = watchlistCodes.includes(r.code)
-                  return (
-                    <div key={r.code} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '8px 6px', borderRadius: 4,
-                      cursor: alreadyAdded ? 'default' : 'pointer',
-                      opacity: alreadyAdded ? 0.5 : 1,
-                    }}
-                      className="sidebar-user"
-                      onMouseEnter={e => { if (!alreadyAdded) e.currentTarget.style.background = 'var(--bg-hover)' }}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--fg-secondary)' }}>{r.name}</span>
-                      <span style={{ fontSize: 12, color: 'var(--fg-dim)', fontFamily: 'var(--font-mono)' }}>{r.code}</span>
+                    className="sidebar-user"
+                    onMouseEnter={e => { if (!alreadyAdded) e.currentTarget.style.background = 'var(--bg-hover)' }}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--fg-secondary)' }}>{r.name}</span>
+                    <span style={{ fontSize: 12, color: 'var(--fg-dim)', fontFamily: 'var(--font-mono)' }}>{r.code}</span>
+                    {alreadyAdded ? (
+                      <span style={{ fontSize: 11, color: 'var(--fg-dim)', padding: '2px 8px' }}>✓ 已添加</span>
+                    ) : (
                       <button
-                        disabled={alreadyAdded}
                         onClick={async () => {
-                          if (alreadyAdded) return
                           if (isLoggedIn()) await addWatchlist(r.code).catch(() => {})
                           const newCodes = [...watchlistCodes, r.code]
                           setWatchlistCodes(newCodes)
                           saveLocalWatchlist(newCodes)
                           loadData(newCodes)
-                          setShowAddDialog(false)
-                          setAddSearch('')
+                          setSearch('')
                           setAddResults([])
                         }}
                         style={{
                           padding: '2px 8px', fontSize: 11, borderRadius: 4,
-                          border: '1px solid', whiteSpace: 'nowrap',
-                          borderColor: alreadyAdded ? 'var(--border)' : '#3b82f6',
-                          background: alreadyAdded ? 'transparent' : 'rgba(59,130,246,0.1)',
-                          color: alreadyAdded ? 'var(--fg-dim)' : '#3b82f6',
-                          cursor: alreadyAdded ? 'default' : 'pointer',
+                          border: '1px solid #3b82f6', whiteSpace: 'nowrap',
+                          background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                          cursor: 'pointer',
                         }}
-                      >{alreadyAdded ? '已添加' : '加自选'}</button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                      >加自选</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
       <div className="watchlist-layout">
