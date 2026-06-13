@@ -7,7 +7,6 @@ const indices = [
   { name: '深证成指', code: '399001', price: 10458.21, change: 1.67, cls: 'rise' },
   { name: '创业板指', code: '399006', price: 2087.56, change: -0.32, cls: 'fall' },
   { name: '科创50', code: '000688', price: 982.43, change: 0.89, cls: 'rise' },
-  { name: '北证50', code: '899050', price: 1124.67, change: 2.13, cls: 'rise' },
 ]
 
 export function TopBar() {
