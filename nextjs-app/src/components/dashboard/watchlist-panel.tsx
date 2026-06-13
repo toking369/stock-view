@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { watchlistData } from '@/lib/mock-data'
+import { useState, useMemo, useEffect } from 'react'
+import { fetchQuotes } from '@/lib/api'
 import { fmtNum } from '@/lib/utils'
 
 export function WatchlistPanel() {
@@ -9,9 +9,18 @@ export function WatchlistPanel() {
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [sortCol, setSortCol] = useState(-1)
   const [sortAsc, setSortAsc] = useState(true)
+  const [quotes, setQuotes] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchQuotes()
+      .then(data => { setQuotes(data); setLoading(false) })
+      .catch(e => { setError(e.message); setLoading(false) })
+  }, [])
 
   const filtered = useMemo(() => {
-    let list = [...watchlistData]
+    let list = [...quotes]
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(s => s.name.includes(q) || s.code.includes(q))
@@ -25,7 +34,7 @@ export function WatchlistPanel() {
       })
     }
     return list
-  }, [search, sortCol, sortAsc])
+  }, [search, sortCol, sortAsc, quotes])
 
   const selected = filtered[selectedIdx] || filtered[0]
   const handleSort = (col: number) => {
@@ -33,6 +42,9 @@ export function WatchlistPanel() {
     else { setSortCol(col); setSortAsc(col === 3 ? false : true) }
   }
   const cols = ['名称', '代码', '最新价', '涨跌幅', '涨跌额', '成交量(手)', '成交额', '换手率', '市盈率', '振幅', '量比']
+
+  if (loading) return <div className="panel-loading" style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载中...</div>
+  if (error) return <div className="panel-error" style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{error}</div>
 
   return (
     <>
