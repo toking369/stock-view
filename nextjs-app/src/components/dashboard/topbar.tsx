@@ -55,9 +55,9 @@ export function TopBar() {
             onMouseLeave={() => setLogoutHover(false)}
             style={{
               width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: logoutHover ? 'rgba(239,68,68,0.08)' : 'none',
+              background: logoutHover ? 'rgba(239,68,68,0.15)' : 'none',
               border: 'none', borderRadius: 4,
-              color: logoutHover ? '#ef4444' : 'var(--fg-dim)',
+              color: logoutHover ? '#dc2626' : 'var(--fg-secondary)',
               cursor: 'pointer', flexShrink: 0,
               transition: 'color 0.2s, background 0.2s',
             }}
