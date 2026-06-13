@@ -5,26 +5,24 @@ import { fetchQuotes } from '@/lib/api'
 import { fmtNum } from '@/lib/utils'
 import ReactECharts from 'echarts-for-react'
 
-/** Generate a realistic intraday curve from OHLC data */
-function genIntraday(open: number, close: number, high: number, low: number) {
-  const N = 242
-  const data: number[] = []
-  const seed = open * 7 + close * 13 + high * 23
-  for (let i = 0; i <= N; i++) {
-    const t = i / N
-    const target = open + (close - open) * t
-    // Pseudo-random noise that respects high/low range
-    const noise = ((Math.sin(seed * (i + 1) * 0.1) + Math.cos(seed * (i + 0.5) * 0.07)) * 0.25 +
-                   (Math.sin(seed * (i * 0.37)) * 0.15 + Math.cos(seed * (i * 0.53)) * 0.1)) * (high - low)
-    data.push(Math.max(low, Math.min(high, target + noise)))
+/** Generate a realistic intraday curve matching original design */
+function genIntraday(open: number, prevClose: number, code: string) {
+  const seed = code.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  let rng = seed
+  const rand = () => { rng = (rng * 9301 + 49297) % 233280; return rng / 233280 }
+  const pts: number[] = []
+  let price = open
+  for (let i = 0; i < 240; i++) {
+    price += (rand() - 0.48) * 2
+    pts.push(+price.toFixed(2))
   }
-  return data
+  return pts
 }
 
-const intradayTimes = Array.from({ length: 243 }, (_, i) => {
-  const m = 570 + i * (210 / 242) // 9:30 → 15:00 in minutes
-  const h = Math.floor(m / 60), min = Math.floor(m % 60)
-  return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`
+const intradayTimes = Array.from({ length: 240 }, (_, i) => {
+  const t = Math.floor(i / 60), m = i % 60
+  const h = 9 + t + Math.floor((30 + m) / 60), mm = (30 + m) % 60
+  return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`
 })
 
 export function WatchlistPanel() {
@@ -128,15 +126,18 @@ export function WatchlistPanel() {
               </div>
               <div className="detail-stats">
                 {[
+                  ['今开', selected.open.toFixed(2), ''],
                   ['最高', selected.high.toFixed(2), 'text-rise'],
+                  ['昨收', selected.prevClose.toFixed(2), ''],
                   ['最低', selected.low.toFixed(2), 'text-fall'],
-                  ['开盘', selected.open.toFixed(2), ''], ['昨收', selected.prevClose.toFixed(2), ''],
-                  ['成交量', (selected.vol / 10000).toFixed(1) + '万手', ''],
+                  ['成交量', (selected.vol / 10000).toFixed(1) + '万', ''],
                   ['成交额', fmtNum(selected.amount), ''],
+                  ['量比', selected.volumeRatio?.toFixed(2) || '-', ''],
                   ['换手率', selected.turnover + '%', ''],
                   ['外盘', fmtNum(selected.outerVol || 0), 'text-rise'],
                   ['内盘', fmtNum(selected.innerVol || 0), 'text-fall'],
-                  ['量比', selected.volumeRatio?.toFixed(2) || '-', ''],
+                  ['振幅', selected.amplitude?.toFixed(2) + '%' || '-', ''],
+                  ['市盈率(TTM)', selected.pe?.toFixed(2) || '-', ''],
                 ].map(([l, v, c]) => (
                   <div key={String(l)} className="detail-stat">
                     <span className="detail-stat-label">{String(l)}</span>
@@ -150,12 +151,25 @@ export function WatchlistPanel() {
               <div className="mini-chart-wrap" style={{ height: 200 }}>
                 <ReactECharts
                   option={{
-                    grid: { left: 8, right: 8, top: 8, bottom: 8 },
-                    xAxis: { type: 'category', data: intradayTimes, show: false },
-                    yAxis: { type: 'value', show: false, scale: true },
+                    grid: { left: 50, right: 12, top: 12, bottom: 24 },
+                    xAxis: {
+                      type: 'category',
+                      data: intradayTimes,
+                      axisLine: { lineStyle: { color: '#1f2937' } },
+                      axisLabel: { color: '#6b7280', fontSize: 10 },
+                      splitLine: { show: false },
+                      boundaryGap: false,
+                    },
+                    yAxis: {
+                      type: 'value', scale: true,
+                      axisLine: { show: false },
+                      axisLabel: { color: '#6b7280', fontSize: 10 },
+                      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
+                      splitNumber: 3,
+                    },
                     series: [{
                       type: 'line',
-                      data: genIntraday(selected.open, selected.price, selected.high, selected.low),
+                      data: genIntraday(selected.open, selected.prevClose, selected.code),
                       smooth: true,
                       symbol: 'none',
                       lineStyle: { width: 1.5, color: selected.change >= 0 ? 'var(--rise)' : 'var(--fall)' },
@@ -163,10 +177,15 @@ export function WatchlistPanel() {
                         color: {
                           type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
                           colorStops: [
-                            { offset: 0, color: selected.change >= 0 ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)' },
+                            { offset: 0, color: selected.change >= 0 ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)' },
                             { offset: 1, color: 'rgba(0,0,0,0)' },
                           ],
                         },
+                      },
+                      markLine: {
+                        silent: true, symbol: 'none',
+                        lineStyle: { color: '#6b7280', type: 'dashed', width: 1 },
+                        data: [{ yAxis: selected.prevClose, label: { formatter: selected.prevClose.toFixed(2), color: '#6b7280', fontSize: 10 } }],
                       },
                     }],
                     tooltip: { trigger: 'axis' },
