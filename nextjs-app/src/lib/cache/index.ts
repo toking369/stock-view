@@ -61,3 +61,9 @@ export class MemoryCache {
 
 export const marketCache = new MemoryCache(500, 30_000)   // 30s TTL for market data
 export const klineCache = new MemoryCache(200, 60_000)    // 60s TTL for K-line data
+export const indexCache = new MemoryCache(100, 10_000)    // 10s TTL for indices
+export const quoteCache = new MemoryCache(500, 10_000)    // 10s TTL for quotes
+export const sectorCache = new MemoryCache(200, 30_000)   // 30s TTL for sectors
+export const flowCache = new MemoryCache(200, 30_000)     // 30s TTL for capital flow
+export const lhbCache = new MemoryCache(100, 60_000)      // 60s TTL for LHB
+export const screenerCache = new MemoryCache(100, 60_000) // 60s TTL for screener
