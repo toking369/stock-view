@@ -7,6 +7,7 @@ import type { Index } from '@/types'
 export function TopBar() {
   const [indices, setIndices] = useState<Index[]>([])
   const [time, setTime] = useState('')
+  const [logoutHover, setLogoutHover] = useState(false)
 
   useEffect(() => {
     const update = () => setTime(new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'))
@@ -47,7 +48,20 @@ export function TopBar() {
         <div className="user-section">
           <div className="user-avatar">U</div>
           <span className="user-name">用户</span>
-          <button className="logout-btn" onClick={() => { localStorage.removeItem('stockview_token'); localStorage.removeItem('stockview_user'); window.location.href = '/login' }} title="退出登录">
+          <button
+            onClick={() => { localStorage.removeItem('stockview_token'); localStorage.removeItem('stockview_user'); window.location.href = '/login' }}
+            title="退出登录"
+            onMouseEnter={() => setLogoutHover(true)}
+            onMouseLeave={() => setLogoutHover(false)}
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: logoutHover ? 'rgba(239,68,68,0.08)' : 'none',
+              border: 'none', borderRadius: 4,
+              color: logoutHover ? '#ef4444' : 'var(--fg-dim)',
+              cursor: 'pointer', flexShrink: 0,
+              transition: 'color 0.2s, background 0.2s',
+            }}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
