@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { login, register } from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -56,7 +57,7 @@ export default function LoginPage() {
     }, 1000)
   }
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginPhoneErr(''); setLoginPwdErr('')
     let valid = true
@@ -66,19 +67,24 @@ export default function LoginPage() {
     else if (loginPwd.length < 6) { setLoginPwdErr('密码至少6位'); valid = false }
     if (!valid) return
 
-    const users = JSON.parse(localStorage.getItem('sv_users') || '[]')
-    const user = users.find((u: any) => u.phone === loginPhone && u.password === loginPwd)
-    if (!user) { setLoginPwdErr('账号或密码错误'); return }
-
     setLoginDisabled(true)
-    setLoginBtnText('登录成功')
-    localStorage.setItem('sv_logged_in', 'true')
-    localStorage.setItem('sv_current_user', JSON.stringify({ phone: user.phone, nickname: user.nickname || user.phone }))
-    if (remember) localStorage.setItem('sv_remember', 'true')
-    setTimeout(() => router.push('/dashboard'), 300)
+    setLoginBtnText('登录中...')
+
+    try {
+      const res = await login(loginPhone, loginPwd)
+      localStorage.setItem('stockview_token', res.token)
+      localStorage.setItem('stockview_user', JSON.stringify(res.user))
+      setLoginBtnText('登录成功')
+      if (remember) localStorage.setItem('stockview_remember', 'true')
+      setTimeout(() => window.location.href = '/dashboard', 300)
+    } catch (err: any) {
+      setLoginPwdErr(err.message || '登录失败')
+      setLoginDisabled(false)
+      setLoginBtnText('登 录')
+    }
   }
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setRegPhoneErr(''); setRegCaptchaErr(''); setRegPwdErr(''); setRegConfirmErr('')
     let valid = true
@@ -92,24 +98,24 @@ export default function LoginPage() {
     else if (regConfirm !== regPwd) { setRegConfirmErr('两次输入的密码不一致'); valid = false }
     if (!valid) return
 
-    const users = JSON.parse(localStorage.getItem('sv_users') || '[]')
-    if (users.find((u: any) => u.phone === regPhone)) { setRegPhoneErr('该手机号已注册'); return }
-
-    const autoNickname = regPhone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
-    users.push({ phone: regPhone, nickname: autoNickname, password: regPwd, createdAt: Date.now() })
-    localStorage.setItem('sv_users', JSON.stringify(users))
-    setRegPhone(''); setRegCaptcha(''); setRegPwd(''); setRegConfirm('')
-    showToast('注册成功，请登录', 'success')
-    setTimeout(() => { switchTab('login'); setLoginPhone(regPhone) }, 500)
+    try {
+      const autoName = regPhone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+      const res = await register(regPhone, regPwd, autoName)
+      localStorage.setItem('stockview_token', res.token)
+      localStorage.setItem('stockview_user', JSON.stringify(res.user))
+      setRegPhone(''); setRegCaptcha(''); setRegPwd(''); setRegConfirm('')
+      showToast('注册成功', 'success')
+      setTimeout(() => window.location.href = '/dashboard', 500)
+    } catch (err: any) {
+      if (err.message.includes('已注册')) setRegPhoneErr(err.message)
+      else setRegPwdErr(err.message || '注册失败')
+    }
   }
 
   useEffect(() => {
-    const users = JSON.parse(localStorage.getItem('sv_users') || '[]')
-    if (!users.find((u: any) => u.phone === '13800138000')) {
-      users.push({ phone: '13800138000', nickname: '138****8000', password: '123456', createdAt: Date.now() })
-      localStorage.setItem('sv_users', JSON.stringify(users))
+    if (localStorage.getItem('stockview_token')) {
+      router.push('/dashboard')
     }
-    if (localStorage.getItem('sv_logged_in') === 'true') router.push('/dashboard')
     return () => { clearTimeout(toastTimeoutRef.current); clearInterval(captchaTimerRef.current) }
   }, [router])
 
