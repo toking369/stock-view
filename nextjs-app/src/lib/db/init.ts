@@ -1,6 +1,6 @@
 /**
- * Database initializer — drops & recreates all tables.
- * Called once on first db access.
+ * Database initializer — creates tables if they don't exist.
+ * Non-destructive: existing data survives server restarts.
  */
 
 import pool from './connection'
@@ -17,38 +17,9 @@ export async function initDatabase() {
     await pool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
     await pool.query(`USE \`${dbName}\``)
 
-    // ── Drop tables (respect FK order: children first) ──
-    await pool.query('SET FOREIGN_KEY_CHECKS = 0')
-
-    await pool.query('DROP TABLE IF EXISTS chat_messages')
-    await pool.query('DROP TABLE IF EXISTS chat_sessions')
-    await pool.query('DROP TABLE IF EXISTS screener_results')
-    await pool.query('DROP TABLE IF EXISTS screener_strategies')
-    await pool.query('DROP TABLE IF EXISTS user_stock_notes')
-    await pool.query('DROP TABLE IF EXISTS watchlist')
-    await pool.query('DROP TABLE IF EXISTS auth_tokens')
-    await pool.query('DROP TABLE IF EXISTS user_settings')
-    await pool.query('DROP TABLE IF EXISTS users')
-
-    await pool.query('DROP TABLE IF EXISTS sector_rank_cache')
-    await pool.query('DROP TABLE IF EXISTS sector_stocks')
-    await pool.query('DROP TABLE IF EXISTS sectors')
-    await pool.query('DROP TABLE IF EXISTS limit_up_cache')
-    await pool.query('DROP TABLE IF EXISTS lhb_cache')
-    await pool.query('DROP TABLE IF EXISTS hsgt_cache')
-    await pool.query('DROP TABLE IF EXISTS moneyflow_cache')
-    await pool.query('DROP TABLE IF EXISTS index_daily_cache')
-    await pool.query('DROP TABLE IF EXISTS daily_basic_cache')
-    await pool.query('DROP TABLE IF EXISTS adj_factor_cache')
-    await pool.query('DROP TABLE IF EXISTS kline_cache')
-    await pool.query('DROP TABLE IF EXISTS trade_calendar')
-    await pool.query('DROP TABLE IF EXISTS stocks')
-
-    await pool.query('SET FOREIGN_KEY_CHECKS = 1')
-
     // ── 1. Users ──
     await pool.query(`
-      CREATE TABLE users (
+      CREATE TABLE IF NOT EXISTS users (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         username        VARCHAR(32)     NOT NULL,
         password        VARCHAR(255)    NOT NULL COMMENT 'bcrypt hash',
@@ -72,7 +43,7 @@ export async function initDatabase() {
 
     // ── 2. User settings ──
     await pool.query(`
-      CREATE TABLE user_settings (
+      CREATE TABLE IF NOT EXISTS user_settings (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         user_id         BIGINT UNSIGNED NOT NULL,
         setting_key     VARCHAR(64)     NOT NULL,
@@ -86,7 +57,7 @@ export async function initDatabase() {
 
     // ── 3. Auth tokens ──
     await pool.query(`
-      CREATE TABLE auth_tokens (
+      CREATE TABLE IF NOT EXISTS auth_tokens (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         user_id         BIGINT UNSIGNED NOT NULL,
         token           VARCHAR(512)    NOT NULL,
@@ -103,7 +74,7 @@ export async function initDatabase() {
 
     // ── 4. Stocks ──
     await pool.query(`
-      CREATE TABLE stocks (
+      CREATE TABLE IF NOT EXISTS stocks (
         ts_code         VARCHAR(16)     NOT NULL,
         symbol          VARCHAR(8)      NOT NULL,
         name            VARCHAR(32)     NOT NULL,
@@ -129,7 +100,7 @@ export async function initDatabase() {
 
     // ── 5. Trade calendar ──
     await pool.query(`
-      CREATE TABLE trade_calendar (
+      CREATE TABLE IF NOT EXISTS trade_calendar (
         trade_date      DATE            NOT NULL,
         is_open         TINYINT(1)      NOT NULL,
         pretrade_date   DATE            DEFAULT NULL,
@@ -142,7 +113,7 @@ export async function initDatabase() {
 
     // ── 6. Sectors ──
     await pool.query(`
-      CREATE TABLE sectors (
+      CREATE TABLE IF NOT EXISTS sectors (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         sector_code     VARCHAR(32)     DEFAULT NULL,
         name            VARCHAR(64)     NOT NULL,
@@ -157,7 +128,7 @@ export async function initDatabase() {
 
     // ── 7. Sector stocks ──
     await pool.query(`
-      CREATE TABLE sector_stocks (
+      CREATE TABLE IF NOT EXISTS sector_stocks (
         sector_id       BIGINT UNSIGNED NOT NULL,
         ts_code         VARCHAR(16)     NOT NULL,
         updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -169,7 +140,7 @@ export async function initDatabase() {
 
     // ── 8. K-line cache ──
     await pool.query(`
-      CREATE TABLE kline_cache (
+      CREATE TABLE IF NOT EXISTS kline_cache (
         ts_code         VARCHAR(16)     NOT NULL,
         period          VARCHAR(8)      NOT NULL COMMENT 'daily|weekly|monthly',
         trade_date      DATE            NOT NULL,
@@ -188,7 +159,7 @@ export async function initDatabase() {
 
     // ── 9. Adjust factor cache ──
     await pool.query(`
-      CREATE TABLE adj_factor_cache (
+      CREATE TABLE IF NOT EXISTS adj_factor_cache (
         ts_code         VARCHAR(16)     NOT NULL,
         trade_date      DATE            NOT NULL,
         adj_factor      DECIMAL(12,6)   NOT NULL,
@@ -199,7 +170,7 @@ export async function initDatabase() {
 
     // ── 10. Daily basic cache ──
     await pool.query(`
-      CREATE TABLE daily_basic_cache (
+      CREATE TABLE IF NOT EXISTS daily_basic_cache (
         ts_code         VARCHAR(16)     NOT NULL,
         trade_date      DATE            NOT NULL,
         turnover_rate   DECIMAL(10,4)   DEFAULT NULL,
@@ -221,7 +192,7 @@ export async function initDatabase() {
 
     // ── 11. Index daily cache ──
     await pool.query(`
-      CREATE TABLE index_daily_cache (
+      CREATE TABLE IF NOT EXISTS index_daily_cache (
         ts_code         VARCHAR(16)     NOT NULL,
         trade_date      DATE            NOT NULL,
         open            DECIMAL(12,2)   DEFAULT NULL,
@@ -239,7 +210,7 @@ export async function initDatabase() {
 
     // ── 12. Moneyflow cache ──
     await pool.query(`
-      CREATE TABLE moneyflow_cache (
+      CREATE TABLE IF NOT EXISTS moneyflow_cache (
         ts_code         VARCHAR(16)     NOT NULL,
         trade_date      DATE            NOT NULL,
         buy_sm_vol      DECIMAL(20,2)   DEFAULT NULL,
@@ -267,7 +238,7 @@ export async function initDatabase() {
 
     // ── 13. HSGT cache ──
     await pool.query(`
-      CREATE TABLE hsgt_cache (
+      CREATE TABLE IF NOT EXISTS hsgt_cache (
         trade_date      DATE            NOT NULL PRIMARY KEY,
         hgt_net         DECIMAL(20,2)   DEFAULT NULL,
         sgt_net         DECIMAL(20,2)   DEFAULT NULL,
@@ -281,7 +252,7 @@ export async function initDatabase() {
 
     // ── 14. Sector rank cache ──
     await pool.query(`
-      CREATE TABLE sector_rank_cache (
+      CREATE TABLE IF NOT EXISTS sector_rank_cache (
         sector_id       BIGINT UNSIGNED NOT NULL,
         trade_date      DATE            NOT NULL,
         change_pct      DECIMAL(8,2)    DEFAULT NULL,
@@ -300,7 +271,7 @@ export async function initDatabase() {
 
     // ── 15. LHB cache ──
     await pool.query(`
-      CREATE TABLE lhb_cache (
+      CREATE TABLE IF NOT EXISTS lhb_cache (
         trade_date      DATE            NOT NULL,
         ts_code         VARCHAR(16)     NOT NULL,
         name            VARCHAR(32)     NOT NULL,
@@ -326,7 +297,7 @@ export async function initDatabase() {
 
     // ── 16. Limit-up cache ──
     await pool.query(`
-      CREATE TABLE limit_up_cache (
+      CREATE TABLE IF NOT EXISTS limit_up_cache (
         trade_date      DATE            NOT NULL,
         ts_code         VARCHAR(16)     NOT NULL,
         name            VARCHAR(32)     NOT NULL,
@@ -347,7 +318,7 @@ export async function initDatabase() {
 
     // ── 17. Watchlist ──
     await pool.query(`
-      CREATE TABLE watchlist (
+      CREATE TABLE IF NOT EXISTS watchlist (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         user_id         BIGINT UNSIGNED NOT NULL,
         ts_code         VARCHAR(16)     NOT NULL,
@@ -363,7 +334,7 @@ export async function initDatabase() {
 
     // ── 18. User stock notes ──
     await pool.query(`
-      CREATE TABLE user_stock_notes (
+      CREATE TABLE IF NOT EXISTS user_stock_notes (
         user_id         BIGINT UNSIGNED NOT NULL,
         ts_code         VARCHAR(16)     NOT NULL,
         note            VARCHAR(1024)   DEFAULT '',
@@ -377,7 +348,7 @@ export async function initDatabase() {
 
     // ── 19. Screener strategies ──
     await pool.query(`
-      CREATE TABLE screener_strategies (
+      CREATE TABLE IF NOT EXISTS screener_strategies (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         user_id         BIGINT UNSIGNED DEFAULT NULL,
         name            VARCHAR(64)     NOT NULL,
@@ -390,6 +361,7 @@ export async function initDatabase() {
         created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
+        UNIQUE KEY uk_screener_key (strategy_key),
         KEY idx_screener_user (user_id),
         KEY idx_screener_preset (is_preset, sort_order),
         CONSTRAINT fk_screener_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -398,7 +370,7 @@ export async function initDatabase() {
 
     // ── 20. Screener results ──
     await pool.query(`
-      CREATE TABLE screener_results (
+      CREATE TABLE IF NOT EXISTS screener_results (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         strategy_id     BIGINT UNSIGNED NOT NULL,
         user_id         BIGINT UNSIGNED DEFAULT NULL,
@@ -417,7 +389,7 @@ export async function initDatabase() {
 
     // ── 21. Chat sessions ──
     await pool.query(`
-      CREATE TABLE chat_sessions (
+      CREATE TABLE IF NOT EXISTS chat_sessions (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         user_id         BIGINT UNSIGNED NOT NULL,
         title           VARCHAR(128)    NOT NULL DEFAULT '新对话',
@@ -434,7 +406,7 @@ export async function initDatabase() {
 
     // ── 22. Chat messages ──
     await pool.query(`
-      CREATE TABLE chat_messages (
+      CREATE TABLE IF NOT EXISTS chat_messages (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         session_id      BIGINT UNSIGNED NOT NULL,
         role            VARCHAR(16)     NOT NULL,
@@ -475,7 +447,10 @@ export async function initDatabase() {
     for (const [name, desc, key, filters, tags, sort] of presetStrategies) {
       await pool.query(
         `INSERT INTO screener_strategies (user_id, name, description, strategy_key, filters, tags, is_preset, sort_order)
-         VALUES (NULL, ?, ?, ?, ?, ?, 1, ?)`,
+         VALUES (NULL, ?, ?, ?, ?, ?, 1, ?)
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name), description = VALUES(description),
+           filters = VALUES(filters), tags = VALUES(tags), sort_order = VALUES(sort_order)`,
         [name, desc, key, filters, tags, sort]
       )
     }
