@@ -43,8 +43,13 @@ export interface KLineDataPoint {
 /** 板块数据 */
 export interface Sector {
   name: string
-  change: number
-  volume: number
+  change: number       // 涨跌幅 %
+  volume: number       // 成交额（亿）
+  leadStock?: string   // 领涨股名称
+  turnover?: number    // 换手率 %
+  price?: number       // 板块指数点位
+  netMf?: number       // 主力净流入（万）
+  netMfRatio?: number  // 主力净流入占比 %
 }
 
 /** 资金流向 */

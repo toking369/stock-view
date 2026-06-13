@@ -40,7 +40,7 @@ const QUOTE_FIELDS =
   'f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f37,f38,f39,f40,f41,f45,f46,f48,f50,f57,f58,f60,f62,f115,f128,f140,f136,f152,f170'
 
 const SECTOR_FIELDS =
-  'f2,f3,f4,f12,f14,f15,f16,f17,f18,f20,f21,f24,f25,f62,f66,f69,f72,f75,f78,f81,f84,f87,f184,f204,f205,f124'
+  'f2,f3,f4,f6,f12,f14,f20,f24,f62,f184,f204,f205'
 
 const CLIST_FIELDS =
   'f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f37,f38,f39,f40,f41,f45,f46,f48,f50,f57,f58,f60,f62,f115,f128,f140,f136,f152,f170,f100,f108,f115,f121,f122,f125,f161,f162,f167,f168,f169,f170'
@@ -186,15 +186,19 @@ export class EastMoneyService {
   /**
    * Fetch sector (板块) performance rankings.
    *
-   * @param type  "industry" (行业) or "concept" (概念)
+   * @param type  "industry" (行业), "concept" (概念), or "region" (地域)
    * @param count Max sectors to return (default 30)
    */
   async fetchSectors(
-    type: 'industry' | 'concept' = 'industry',
+    type: 'industry' | 'concept' | 'region' = 'industry',
     count: number = 30,
   ): Promise<Sector[]> {
-    const typeMap = { industry: 'm:90+t:2', concept: 'm:90+t:3' }
-    const url = `${API.CLIST}?pn=1&pz=${count}&po=1&np=1&fltt=2&invt=2&fid=f3&fs=${typeMap[type]}&fields=${SECTOR_FIELDS}&ut=${UT}`
+    const typeMap: Record<string, string> = {
+      industry: 'm:90+t:2',
+      concept: 'm:90+t:3',
+      region: 'm:90+t:1',
+    }
+    const url = `${API.CLIST}?pn=1&pz=${count}&po=1&np=1&fltt=2&invt=2&fid=f3&fs=${typeMap[type] || typeMap.industry}&fields=${SECTOR_FIELDS}&ut=${UT}`
     const data = await fetchJSON<{ data?: { diff?: Record<string, unknown>[] } }>(url)
     const items = data?.data?.diff ?? []
     return items
@@ -204,6 +208,11 @@ export class EastMoneyService {
         name: String(item.f14 ?? ''),
         change: Number(item.f3 ?? 0),
         volume: Math.round(Number(item.f6 ?? 0) / 100000000),
+        leadStock: String(item.f204 ?? '') || undefined,
+        turnover: Number(item.f24 ?? 0),
+        price: Number(item.f2 ?? 0),
+        netMf: Math.round(Number(item.f62 ?? 0) / 10000), // 主力净流入(万)
+        netMfRatio: Number(item.f184 ?? 0),               // 主力净流入占比%
       }))
   }
 
