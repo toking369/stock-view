@@ -79,8 +79,8 @@ export function WatchlistPanel() {
                     <td>{s.vol.toLocaleString()}</td>
                     <td>{fmtNum(s.amount)}</td>
                     <td>{s.turnover}%</td>
-                    <td>{s.outerVol?.toLocaleString() || '0'}</td>
-                    <td>{s.innerVol?.toLocaleString() || '0'}</td>
+                    <td>{fmtNum(s.outerVol || 0)}</td>
+                    <td>{fmtNum(s.innerVol || 0)}</td>
                     <td>{s.volumeRatio}</td>
                   </tr>
                 )
