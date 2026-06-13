@@ -20,6 +20,26 @@ export function AppSidebar() {
   const [displayName, setDisplayName] = useState('')
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
+  // Auth guard: redirect to login if not authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('stockview_token')
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
+    // Verify token is still valid
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.status === 401) {
+          localStorage.removeItem('stockview_token')
+          localStorage.removeItem('stockview_user')
+          localStorage.removeItem('stockview_watchlist')
+          window.location.href = '/login'
+        }
+      })
+      .catch(() => { /* network error — stay on page */ })
+  }, [])
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('stockview_user')
