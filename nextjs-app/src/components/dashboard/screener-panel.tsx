@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
-import { screenerStockPool, presetStrategies } from '@/lib/mock-data'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { fetchScreenerPool, fetchStrategies } from '@/lib/api'
 import type { ScreenerStock, PresetStrategy, ScreenerFilters } from '@/types'
 
 // ── Helpers ──────────────────────────────────────────
@@ -151,6 +151,20 @@ export function ScreenerPanel() {
   const [starredStocks, setStarredStocks] = useState<Set<string>>(new Set())
   const [activeFilterTab, setActiveFilterTab] = useState<'tech' | 'fund' | 'market'>('tech')
   const [hasRun, setHasRun] = useState(false)
+  const [stockPool, setStockPool] = useState<ScreenerStock[]>([])
+  const [strategies, setStrategies] = useState<PresetStrategy[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      fetchScreenerPool(),
+      fetchStrategies(),
+    ]).then(([pool, strats]) => {
+      setStockPool(pool as ScreenerStock[])
+      setStrategies(strats)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
 
   // ── Update a single filter key ─────────────────────
   const updFilter = useCallback(
@@ -173,14 +187,14 @@ export function ScreenerPanel() {
   // ── Computed results ───────────────────────────────
   const results = useMemo(() => {
     const strategy = activeStrategy
-      ? presetStrategies.find((s) => s.id === activeStrategy)
+      ? strategies.find((s) => s.id === activeStrategy)
       : null
 
     if (!hasActiveFilters(filters) && !strategy) {
       return []
     }
 
-    return screenerStockPool.filter((s) => {
+    return stockPool.filter((s) => {
       if (!filterStock(s, filters)) return false
       if (strategy && !checkStrategyExtras(s, strategy.filters)) return false
       return true
@@ -255,6 +269,9 @@ export function ScreenerPanel() {
     return results
   }, [results, hasRun, filters, activeStrategy])
 
+  // ── Loading ──────────────────────────────────────
+  if (loading) return <div className="panel-loading" style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载选股数据中...</div>
+
   // ── Render ───────────────────────────────────────
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -270,7 +287,7 @@ export function ScreenerPanel() {
         {/* ====== Strategy Bar ====== */}
         <div className="strategy-bar">
           <span className="strategy-bar-label">快捷策略</span>
-          {presetStrategies.map((s) => (
+          {strategies.map((s) => (
             <div
               key={s.id}
               className={'strategy-chip' + (activeStrategy === s.id ? ' active' : '')}
@@ -822,7 +839,7 @@ export function ScreenerPanel() {
               <div className="results-tags">
                 {activeStrategy && (
                   <span className="result-tag">
-                    策略: {presetStrategies.find((s) => s.id === activeStrategy)?.name}
+                    策略: {strategies.find((s) => s.id === activeStrategy)?.name}
                   </span>
                 )}
                 {activeTags.slice(0, 6).map((tag) => (
