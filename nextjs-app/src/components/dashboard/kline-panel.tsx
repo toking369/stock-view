@@ -1,15 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import ReactECharts from 'echarts-for-react'
-import {
-  calcMA,
-  calcMACD,
-  calcKDJ,
-  calcRSI,
-  calcBOLL,
-  generateKlineData,
-} from '@/lib/indicators'
+import { calcMA, calcMACD, calcKDJ, calcRSI, calcBOLL } from '@/lib/indicators'
+import { fetchKline } from '@/lib/api'
 import { fmtNum } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -90,8 +84,21 @@ export function KlinePanel() {
   const [indicator, setIndicator] = useState<IndicatorKey>('macd')
   const [klinePeriod, setKlinePeriod] = useState<PeriodKey>('daily')
 
-  // ---------- Mock data ----------
-  const klineData = useMemo(() => generateKlineData(120), [])
+  // ---------- Data fetching ----------
+  const [klineData, setKlineData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const periodMap: Record<PeriodKey, string> = {
+    daily: 'day', weekly: 'week', monthly: 'month',
+    '60min': '60', '30min': '30', '15min': '15',
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    fetchKline('600519', 120, periodMap[klinePeriod])
+      .then((data) => { setKlineData(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [klinePeriod])
 
   // ---------- Indicator computations ----------
   const maValues = useMemo(
@@ -568,6 +575,13 @@ export function KlinePanel() {
             flexDirection: 'column',
           }}
         >
+          {loading && (
+            <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载K线数据中...</div>
+          )}
+          {!loading && klineData.length === 0 && (
+            <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>暂无K线数据</div>
+          )}
+
           {/* Structural elements preserving required CSS classes */}
           <div className="kline-main-chart" style={{ flex: 1, minHeight: 0 }} />
           <div className="kline-sub-chart" />
