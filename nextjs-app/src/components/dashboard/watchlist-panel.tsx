@@ -25,6 +25,25 @@ const intradayTimes = Array.from({ length: 240 }, (_, i) => {
   return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`
 })
 
+const DEFAULT_WATCHLIST = ['600519', '300750', '601318', '600036', '300059', '000858', '002594', '000333', '603259', '600030']
+
+function loadWatchlist(): string[] {
+  if (typeof window === 'undefined') return DEFAULT_WATCHLIST
+  try {
+    const saved = localStorage.getItem('stockview_watchlist')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_WATCHLIST
+    }
+  } catch {}
+  return DEFAULT_WATCHLIST
+}
+
+function saveWatchlist(codes: string[]) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('stockview_watchlist', JSON.stringify(codes))
+}
+
 export function WatchlistPanel() {
   const [search, setSearch] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
@@ -33,12 +52,30 @@ export function WatchlistPanel() {
   const [quotes, setQuotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [watchlistCodes, setWatchlistCodes] = useState<string[]>(loadWatchlist)
+
+  const loadData = (codes: string[]) => {
+    setLoading(true)
+    fetchQuotes(codes)
+      .then(data => { setQuotes(data); setLoading(false); setSelectedIdx(0) })
+      .catch(e => { setError(e.message); setLoading(false) })
+  }
 
   useEffect(() => {
-    fetchQuotes()
-      .then(data => { setQuotes(data); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
-  }, [])
+    loadData(watchlistCodes)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleWatchlist = (code: string) => {
+    let newCodes: string[]
+    if (watchlistCodes.includes(code)) {
+      newCodes = watchlistCodes.filter(c => c !== code)
+    } else {
+      newCodes = [...watchlistCodes, code]
+    }
+    setWatchlistCodes(newCodes)
+    saveWatchlist(newCodes)
+    loadData(newCodes)
+  }
 
   const filtered = useMemo(() => {
     let list = [...quotes]
@@ -57,7 +94,6 @@ export function WatchlistPanel() {
     return list
   }, [search, sortCol, sortAsc, quotes])
 
-  const selected = filtered[selectedIdx] || filtered[0]
   const handleSort = (col: number) => {
     if (sortCol === col) setSortAsc(!sortAsc)
     else { setSortCol(col); setSortAsc(col === 3 ? false : true) }
@@ -66,6 +102,9 @@ export function WatchlistPanel() {
 
   if (loading) return <div className="panel-loading" style={{ padding: 40, textAlign: 'center', color: '#888' }}>加载中...</div>
   if (error) return <div className="panel-error" style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{error}</div>
+
+  const selected = filtered[selectedIdx] || filtered[0]
+  const isInWatchlist = selected && watchlistCodes.includes(selected.code)
 
   return (
     <>
@@ -79,6 +118,11 @@ export function WatchlistPanel() {
       </div>
       <div className="watchlist-layout">
         <div className="watchlist-table-wrap">
+          {filtered.length === 0 ? (
+            <div className="panel-empty" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b7280', fontSize: 14 }}>
+              暂无数据
+            </div>
+          ) : (
           <table className="data-table">
             <thead><tr>
               {cols.map((c, i) => (
@@ -108,6 +152,7 @@ export function WatchlistPanel() {
               })}
             </tbody>
           </table>
+          )}
         </div>
         {selected && (
           <div className="watchlist-detail">
@@ -115,6 +160,23 @@ export function WatchlistPanel() {
               <div className="detail-stock-header">
                 <span className="detail-stock-name">{selected.name}</span>
                 <span className="detail-stock-code">{selected.code}</span>
+                <button
+                  onClick={() => toggleWatchlist(selected.code)}
+                  style={{
+                    marginLeft: 'auto',
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    borderRadius: 4,
+                    border: '1px solid',
+                    borderColor: isInWatchlist ? '#ef4444' : '#3b82f6',
+                    background: isInWatchlist ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+                    color: isInWatchlist ? '#ef4444' : '#3b82f6',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isInWatchlist ? '删自选' : '加自选'}
+                </button>
               </div>
               <div className="detail-price-row">
                 <span className="detail-price" style={{ color: selected.change >= 0 ? 'var(--rise)' : 'var(--fall)' }}>
