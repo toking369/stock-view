@@ -50,9 +50,9 @@ export async function fetchKline(code: string, days: number = 120, period: strin
   return apiFetch<KLineDataPoint[]>(`/api/market/kline?code=${code}&days=${days}&period=${period}`)
 }
 
-/** Fetch sectors */
-export async function fetchSectors(type: string = 'industry', count: number = 30): Promise<Sector[]> {
-  return apiFetch<Sector[]>(`/api/market/sectors?type=${type}&count=${count}`)
+/** Fetch sectors — returns { sectors, fetchedAt } with server timestamp */
+export async function fetchSectors(type: string = 'industry', count: number = 30): Promise<{ sectors: Sector[]; fetchedAt: number }> {
+  return apiFetch<{ sectors: Sector[]; fetchedAt: number }>(`/api/market/sectors?type=${type}&count=${count}`)
 }
 
 /** Fetch capital flow ranking */

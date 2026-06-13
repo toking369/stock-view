@@ -61,7 +61,9 @@ async function fetchSectors(type: string = 'industry', count: number = 30): Prom
   try {
     const res = await fetch(`/api/market/sectors?type=${type}&count=${count}`)
     if (!res.ok) return []
-    return res.json()
+    const json = await res.json()
+    // API now wraps response in { sectors, fetchedAt }
+    return Array.isArray(json) ? json : (json.sectors ?? [])
   } catch {
     return []
   }

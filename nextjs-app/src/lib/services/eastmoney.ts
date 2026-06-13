@@ -216,6 +216,28 @@ export class EastMoneyService {
       }))
   }
 
+  /**
+   * Fetch broad market index sectors (指数板块).
+   * Fetches major indices from 上证, 深证, and 中证 series.
+   * Returns data mapped to the Sector shape (price=index point, volume=turnover).
+   */
+  async fetchIndexSectors(count: number = 50): Promise<Sector[]> {
+    const url = `${API.CLIST}?pn=1&pz=${count}&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:1+t:1,m:1+t:2,m:1+t:3&fields=f2,f3,f4,f6,f12,f14,f15,f16,f62,f184&ut=${UT}`
+    const data = await fetchJSON<{ data?: { diff?: Record<string, unknown>[] } }>(url)
+    const items = data?.data?.diff ?? []
+    return items
+      .filter(Boolean)
+      .slice(0, count)
+      .map((item) => ({
+        name: String(item.f14 ?? ''),
+        change: Number(item.f3 ?? 0),
+        volume: Math.round(Number(item.f6 ?? 0) / 100000000),
+        price: Number(item.f2 ?? 0),
+        netMf: Math.round(Number(item.f62 ?? 0) / 10000),
+        netMfRatio: Number(item.f184 ?? 0),
+      }))
+  }
+
   /** Fetch sector-level capital flow ranking. */
   async fetchCapitalFlowRanking(count: number = 10): Promise<CapitalFlow[]> {
     const url = `${API.CLIST}?pn=1&pz=${count}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75&ut=${UT}`
